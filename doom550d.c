@@ -790,19 +790,16 @@ static unsigned int doom550d_keypress_raw(unsigned int context)
 
         case DOOM_BGMT_Q:
             release_game_keys();
-            DOOM_LOG("Q sent Y\n");
             tap_key('y');
             return 0;
 
         case DOOM_BGMT_MENU:
             if ((uint32_t)get_ms_clock() - doom_start_ms < 5000)
             {
-                DOOM_LOG("Ignored startup MENU event\n");
                 return 0;
             }
 
             release_game_keys();
-            DOOM_LOG("MENU sent Escape\n");
             tap_key(KEY_ESCAPE);
             return 0;
 
