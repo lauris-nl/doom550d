@@ -8,7 +8,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE="$SCRIPT_DIR/doom550d.c"
 MODULE="$SCRIPT_DIR/build/doom.mo"
-DEP="$SCRIPT_DIR/build/doom550d.dep"
+DEP="$SCRIPT_DIR/build/doom.dep"
 
 TARGET_DEVICE=""
 MOUNTPOINT=""

@@ -287,7 +287,11 @@ static void update_pulsed_keys(void)
         KEY_LEFTARROW,
         KEY_RIGHTARROW,
         KEY_FIRE,
-        KEY_USE
+        KEY_USE,
+        KEY_ESCAPE,
+        KEY_ENTER,
+        KEY_TAB,
+        'y'
     };
 
     uint32_t now = (uint32_t)get_ms_clock();
