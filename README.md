@@ -1,5 +1,18 @@
 # Doom 550D
 
+## Screenshots
+
+### Doom title screen
+![Doom title screen](screenshots/doom_title.jpg)
+
+### In-game
+![Doom running on Canon 550D](screenshots/doom_ingame1.jpg)
+
+### In-game combat
+![Doom gameplay on Canon 550D](screenshots/doom_ingame2.jpg)
+![Doom gameplay on Canon 550D](screenshots/doom_ingame3.jpg)
+![Doom gameplay on Canon 550D](screenshots/doom_menu.jpg)
+
 Doom running as a Magic Lantern module on the Canon EOS 550D / Rebel T2i / Kiss X4.
 
 This release builds a Doomgeneric module for Canon EOS 550D firmware 1.0.9.
