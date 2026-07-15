@@ -8,6 +8,8 @@
 #include <fio-ml.h>
 
 #define DOOM_ML_IO_CHUNK (64 * 1024)
+#define DOOM_ML_WRITE_BUFFER (16 * 1024)
+#define DOOM_ML_READ_BUFFER (16 * 1024)
 #define DOOM_ML_FORMAT_BUFFER 768
 
 typedef struct
@@ -16,6 +18,12 @@ typedef struct
     uint32_t position;
     uint32_t size;
     int writable;
+    int error;
+    uint8_t *write_buffer;
+    size_t write_used;
+    uint8_t *read_buffer;
+    size_t read_pos;
+    size_t read_used;
 } doom_ml_file_t;
 
 volatile int doom_ml_exit_requested = 0;
@@ -52,6 +60,92 @@ static uint8_t *doom_ml_get_io_buffer(void)
         doom_ml_io_buffer = fio_malloc(DOOM_ML_IO_CHUNK);
 
     return doom_ml_io_buffer;
+}
+
+/*
+ * Doom serializes savegames mostly one byte at a time. Sending every byte
+ * directly to DryOS/FAT is extremely slow and can stall the camera. Keep a
+ * small per-file write buffer and flush it in larger blocks.
+ */
+static int doom_ml_flush_write_buffer(doom_ml_file_t *file)
+{
+    size_t completed = 0;
+
+    if (!file || !file->handle)
+        return -1;
+
+    if (file->error)
+        return -1;
+
+    while (completed < file->write_used)
+    {
+        size_t remaining = file->write_used - completed;
+        int written = FIO_WriteFile(
+            file->handle,
+            file->write_buffer + completed,
+            remaining
+        );
+
+        if (written <= 0)
+        {
+            file->error = 1;
+
+            if (completed > 0)
+            {
+                memmove(
+                    file->write_buffer,
+                    file->write_buffer + completed,
+                    file->write_used - completed
+                );
+                file->write_used -= completed;
+            }
+
+            return -1;
+        }
+
+        completed += (size_t)written;
+    }
+
+    file->write_used = 0;
+    return 0;
+}
+
+void *doom_ml_malloc(size_t size);
+
+static int doom_ml_prepare_read(doom_ml_file_t *file)
+{
+    if (!file || !file->handle)
+        return -1;
+
+    if (file->writable && doom_ml_flush_write_buffer(file) != 0)
+        return -1;
+
+
+    if (!file->read_buffer)
+    {
+        file->read_buffer = doom_ml_malloc(DOOM_ML_READ_BUFFER);
+
+        if (!file->read_buffer)
+            return -1;
+    }
+
+    return 0;
+}
+
+static void doom_ml_discard_read_buffer(doom_ml_file_t *file)
+{
+    if (!file)
+        return;
+
+    /*
+     * DryOS may already be ahead because a complete block was prefetched.
+     * Reposition it to the logical stdio position before changing direction.
+     */
+    if (file->read_pos < file->read_used)
+        FIO_SeekSkipFile(file->handle, file->position, SEEK_SET);
+
+    file->read_pos = 0;
+    file->read_used = 0;
 }
 
 void *doom_ml_malloc(size_t size)
@@ -135,6 +229,19 @@ void *doom_ml_fopen(const char *path, const char *mode)
     file->handle = handle;
     file->writable = writing || appending || updating;
 
+    if (file->writable)
+    {
+        file->write_buffer = doom_ml_malloc(DOOM_ML_WRITE_BUFFER);
+
+        if (!file->write_buffer)
+        {
+            FIO_CloseFile(handle);
+            doom_ml_free(file);
+            return 0;
+        }
+    }
+
+
     if (FIO_GetFileSize(path, &file_size) == 0)
         file->size = file_size;
 
@@ -150,15 +257,25 @@ void *doom_ml_fopen(const char *path, const char *mode)
 int doom_ml_fclose(void *stream)
 {
     doom_ml_file_t *file = stream;
+    int result = 0;
 
     if (!file)
         return -1;
 
+    if (file->writable && doom_ml_flush_write_buffer(file) != 0)
+        result = -1;
+
     if (file->handle)
         FIO_CloseFile(file->handle);
 
+    if (file->write_buffer)
+        doom_ml_free(file->write_buffer);
+
+    if (file->read_buffer)
+        doom_ml_free(file->read_buffer);
+
     doom_ml_free(file);
-    return 0;
+    return result;
 }
 
 size_t doom_ml_fread(
@@ -170,39 +287,87 @@ size_t doom_ml_fread(
 {
     doom_ml_file_t *file = stream;
     uint8_t *destination = ptr;
-    uint8_t *temporary;
     size_t requested;
     size_t completed = 0;
 
-    if (!file || !file->handle || !ptr || !size || !count)
+    if (!file || !file->handle || !ptr || !size || !count || file->error)
         return 0;
 
     if (count > ((size_t)-1) / size)
         return 0;
 
-    requested = size * count;
-    temporary = doom_ml_get_io_buffer();
-
-    if (!temporary)
+    if (doom_ml_prepare_read(file) != 0)
+    {
+        file->error = 1;
         return 0;
+    }
+
+    requested = size * count;
 
     while (completed < requested)
     {
-        size_t remaining = requested - completed;
-        size_t chunk = remaining > DOOM_ML_IO_CHUNK
-            ? DOOM_ML_IO_CHUNK
-            : remaining;
-        int received = FIO_ReadFile(file->handle, temporary, chunk);
+        size_t available = file->read_used - file->read_pos;
 
-        if (received <= 0)
-            break;
+        if (available > 0)
+        {
+            size_t remaining = requested - completed;
+            size_t copied = available < remaining ? available : remaining;
 
-        memcpy(destination + completed, temporary, received);
-        completed += received;
-        file->position += received;
+            memcpy(
+                destination + completed,
+                file->read_buffer + file->read_pos,
+                copied
+            );
 
-        if ((size_t)received < chunk)
-            break;
+            file->read_pos += copied;
+            file->position += (uint32_t)copied;
+            completed += copied;
+            continue;
+        }
+
+        file->read_pos = 0;
+        file->read_used = 0;
+
+        /*
+         * Large aligned reads may go straight to the caller. Savegame reads
+         * are normally one byte and therefore use the read-ahead buffer.
+         */
+        if (requested - completed >= DOOM_ML_READ_BUFFER)
+        {
+            size_t remaining = requested - completed;
+            size_t chunk = remaining > DOOM_ML_IO_CHUNK
+                ? DOOM_ML_IO_CHUNK
+                : remaining;
+            int received = FIO_ReadFile(
+                file->handle,
+                destination + completed,
+                chunk
+            );
+
+            if (received <= 0)
+                break;
+
+            completed += (size_t)received;
+            file->position += (uint32_t)received;
+
+            if ((size_t)received < chunk)
+                break;
+
+            continue;
+        }
+
+        {
+            int received = FIO_ReadFile(
+                file->handle,
+                file->read_buffer,
+                DOOM_ML_READ_BUFFER
+            );
+
+            if (received <= 0)
+                break;
+
+            file->read_used = (size_t)received;
+        }
     }
 
     return completed / size;
@@ -220,8 +385,16 @@ size_t doom_ml_fwrite(
     size_t requested;
     size_t completed = 0;
 
-    if (!file || !file->handle || !ptr || !size || !count || !file->writable)
+    if (
+        !file || !file->handle || !ptr || !size || !count ||
+        !file->writable || !file->write_buffer || file->error
+    )
+    {
         return 0;
+    }
+
+
+    doom_ml_discard_read_buffer(file);
 
     if (count > ((size_t)-1) / size)
         return 0;
@@ -231,22 +404,65 @@ size_t doom_ml_fwrite(
     while (completed < requested)
     {
         size_t remaining = requested - completed;
-        size_t chunk = remaining > DOOM_ML_IO_CHUNK
-            ? DOOM_ML_IO_CHUNK
-            : remaining;
-        int written = FIO_WriteFile(file->handle, source + completed, chunk);
 
-        if (written <= 0)
+        /* Large writes can bypass the small buffer when it is empty. */
+        if (file->write_used == 0 && remaining >= DOOM_ML_WRITE_BUFFER)
+        {
+            size_t chunk = remaining > DOOM_ML_IO_CHUNK
+                ? DOOM_ML_IO_CHUNK
+                : remaining;
+            int written = FIO_WriteFile(
+                file->handle,
+                source + completed,
+                chunk
+            );
+
+            if (written <= 0)
+            {
+                file->error = 1;
+                break;
+            }
+
+            completed += (size_t)written;
+            file->position += (uint32_t)written;
+
+            if (file->position > file->size)
+                file->size = file->position;
+
+            if ((size_t)written < chunk)
+            {
+                file->error = 1;
+                break;
+            }
+
+            continue;
+        }
+
+        {
+            size_t space = DOOM_ML_WRITE_BUFFER - file->write_used;
+            size_t copied = remaining < space ? remaining : space;
+
+            memcpy(
+                file->write_buffer + file->write_used,
+                source + completed,
+                copied
+            );
+
+            file->write_used += copied;
+            completed += copied;
+            file->position += (uint32_t)copied;
+
+            if (file->position > file->size)
+                file->size = file->position;
+        }
+
+        if (
+            file->write_used == DOOM_ML_WRITE_BUFFER &&
+            doom_ml_flush_write_buffer(file) != 0
+        )
+        {
             break;
-
-        completed += written;
-        file->position += written;
-
-        if (file->position > file->size)
-            file->size = file->position;
-
-        if ((size_t)written < chunk)
-            break;
+        }
     }
 
     return completed / size;
@@ -260,6 +476,11 @@ int doom_ml_fseek(void *stream, long offset, int whence)
     if (!file || !file->handle)
         return -1;
 
+    if (file->writable && doom_ml_flush_write_buffer(file) != 0)
+        return -1;
+
+    doom_ml_discard_read_buffer(file);
+
     if (whence == SEEK_SET)
         new_position = offset;
     else if (whence == SEEK_CUR)
@@ -272,7 +493,8 @@ int doom_ml_fseek(void *stream, long offset, int whence)
     if (new_position < 0)
         return -1;
 
-    FIO_SeekSkipFile(file->handle, offset, whence);
+    /* The underlying position may lag while writes are buffered. */
+    FIO_SeekSkipFile(file->handle, new_position, SEEK_SET);
     file->position = (uint32_t)new_position;
     return 0;
 }
@@ -289,8 +511,15 @@ long doom_ml_ftell(void *stream)
 
 int doom_ml_fflush(void *stream)
 {
-    (void)stream;
-    return 0;
+    doom_ml_file_t *file = stream;
+
+    if (!file)
+        return -1;
+
+    if (!file->writable)
+        return 0;
+
+    return doom_ml_flush_write_buffer(file);
 }
 
 static int doom_ml_write_formatted(
@@ -424,7 +653,9 @@ int doom_ml_rename(const char *old_path, const char *new_path)
     }
 
 cleanup:
-    doom_ml_fclose(destination);
+    if (doom_ml_fclose(destination) != 0)
+        result = -1;
+
     doom_ml_fclose(source);
 
     if (result == 0)

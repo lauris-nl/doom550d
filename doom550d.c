@@ -302,6 +302,19 @@ static void update_pulsed_keys(void)
     }
 }
 
+void DG_ResetInput(void)
+{
+    /*
+     * A load is selected while the menu key sequence is still in flight.
+     * Throw away that old sequence before accepting fresh camera buttons.
+     */
+    key_read = 0;
+    key_write = 0;
+    memset(key_queue, 0, sizeof(key_queue));
+    memset(key_state, 0, sizeof(key_state));
+    memset(pulse_deadline, 0, sizeof(pulse_deadline));
+}
+
 
 static void doom_raw_trace_add(const struct event *event)
 {

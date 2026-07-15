@@ -51,7 +51,7 @@ event_t *D_PopEvent(void)
     {
         return NULL;
     }
-    
+
     result = &events[eventtail];
 
     // Advance to the next event in the queue.
@@ -59,6 +59,13 @@ event_t *D_PopEvent(void)
     eventtail = (eventtail + 1) % MAXEVENTS;
 
     return result;
+}
+
+void D_ClearEvents(void)
+{
+    eventhead = 0;
+    eventtail = 0;
+    memset(events, 0, sizeof(events));
 }
 
 

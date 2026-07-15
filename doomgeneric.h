@@ -46,4 +46,6 @@ void DG_SetWindowTitle(const char * title);
 }
 #endif
 
+void DG_ResetInput(void);
+
 #endif //DOOM_GENERIC
