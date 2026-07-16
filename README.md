@@ -126,7 +126,7 @@ Download links for freely distributable or commercially available data:
 | SET | Fire; confirm in menus |
 | PLAY | Use/open doors and switches |
 | Rear wheel | Previous/next owned weapon |
-| INFO | Automap; back while in menus |
+| DISP. (called INFO internally by Magic Lantern) | Automap; back while in menus |
 | MENU | Open/close the Doom menu |
 | Q | Confirm the Doom quit dialog |
 | Front depth-of-field button | Run/speed; experimental |

@@ -49,5 +49,5 @@ No WAD files or other copyrighted game assets are included.
 
 ```text
 doom.mo
-SHA-256: fd3ca4c5abf11949bfbe3cd17feef0f74d307c266670de288d47a84fcf67738b
+SHA-256: a8c32cdf85231079f0ee7ad3ccbcb065792483ae9759c911640526c3d77446b8
 ```

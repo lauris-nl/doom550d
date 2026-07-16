@@ -1,5 +1,6 @@
 # Canon EOS 550D Doomgeneric module
 MODULE_NAME = doom
+export ML_BUILD_USER := Bas Lichtjaar <doom@lauris.nl>
 
 DOOM_OBJS = \
     dummy am_map doomdef doomstat dstrings d_event d_items d_iwad d_loop \

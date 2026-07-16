@@ -331,7 +331,7 @@ static int audio_start(void)
     if (audio_running) return 1;
     if (beep_playing)
     {
-        printf("doom550d: audio output busy; disable musplay.mo\n");
+        printf("doom550d: Canon audio output is already in use\n");
         return 0;
     }
     render(buffers[0]);

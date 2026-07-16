@@ -29,7 +29,7 @@ Controls
 * SET: fire; confirm in menus
 * PLAY: use/open doors and switches
 * Rear wheel: previous/next owned weapon
-* INFO: automap; back in menus
+* DISP. (called INFO internally by Magic Lantern): automap; back in menus
 * MENU: open/close the Doom menu
 * Q: confirm the Doom quit dialog
 * Front depth-of-field button: run/speed (experimental)
