@@ -392,6 +392,18 @@ void *W_CacheLumpNum(int lumpnum, int tag)
 
     lump = &lumpinfo[lumpnum];
 
+    /* A savegame load may expose an already released cache entry.  Never
+     * retag a stale pointer: its zone block may have been reused by now. */
+    if (lump->wad_file->mapped == NULL
+        && lump->cache != NULL
+        && !Z_OwnsPointer(lump->cache, &lump->cache))
+    {
+        fprintf(stderr,
+                "W_CacheLumpNum: drop stale cache lump=%d name=%.8s\n",
+                lumpnum, lump->name);
+        lump->cache = NULL;
+    }
+
     // Get the pointer to return.  If the lump is in a memory-mapped
     // file, we can just return a pointer to within the memory-mapped
     // region.  If the lump is in an ordinary file, we may already
@@ -456,6 +468,19 @@ void W_ReleaseLumpNum(int lumpnum)
     if (lump->wad_file->mapped != NULL)
     {
         // Memory-mapped file, so nothing needs to be done here.
+    }
+    else if (lump->cache == NULL)
+    {
+        fprintf(stderr,
+                "W_ReleaseLumpNum: lump=%d name=%.8s already uncached\n",
+                lumpnum, lump->name);
+    }
+    else if (!Z_OwnsPointer(lump->cache, &lump->cache))
+    {
+        fprintf(stderr,
+                "W_ReleaseLumpNum: drop stale cache lump=%d name=%.8s\n",
+                lumpnum, lump->name);
+        lump->cache = NULL;
     }
     else
     {

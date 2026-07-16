@@ -12,7 +12,7 @@ DOOM_OBJS = \
     p_user r_bsp r_data r_draw r_main r_plane r_segs r_sky r_things sha1 \
     sounds statdump st_lib st_stuff s_sound tables v_video wi_stuff \
     w_checksum w_file w_main w_wad z_zone w_file_stdc i_input i_video \
-    doomgeneric doom_ml_compat doom_audio_ml
+    doomgeneric doom_ml_compat doom_audio_ml doom_softsynth
 
 MODULE_OBJS = \
     $(BUILD_DIR)/doom550d.o \

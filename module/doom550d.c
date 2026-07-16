@@ -44,6 +44,7 @@ static volatile int doom_task_active = 0;
 static volatile uint32_t doom_start_ms = 0;
 static volatile uint32_t doom_tick_count = 0;
 static volatile uint32_t doom_draw_count = 0;
+static volatile int zoom_run_pressed = 0;
 static char doom_wad_files[DOOM_MAX_WAD_FILES][FIO_MAX_PATH_LENGTH];
 static int doom_wad_file_count = 0;
 static int doom_wad_scan_done = 0;
@@ -288,6 +289,7 @@ static void release_game_keys(void)
     release_direction_keys();
     release_key(KEY_STRAFE_L);
     release_key(KEY_STRAFE_R);
+    release_key(KEY_RALT);
     release_key(KEY_RSHIFT);
     release_key(KEY_FIRE);
     release_key(KEY_USE);
@@ -319,6 +321,14 @@ static void update_pulsed_keys(void)
         if (deadline && (int32_t)(now - deadline) >= 0)
             release_key(key);
     }
+}
+
+static void update_run_key(void)
+{
+    if (doom_running && !menuactive && zoom_run_pressed)
+        queue_key(1, KEY_RSHIFT);
+    else
+        release_key(KEY_RSHIFT);
 }
 
 void DG_ResetInput(void)
@@ -469,6 +479,7 @@ uint32_t DG_GetTicksMs(void)
 
 int DG_GetKey(int *pressed, unsigned char *doom_key)
 {
+    update_run_key();
     update_pulsed_keys();
 
     if (key_read == key_write)
@@ -848,6 +859,7 @@ static void doom550d_task(void *arg)
     doom_start_ms = (uint32_t)get_ms_clock();
     doom_tick_count = 0;
     doom_draw_count = 0;
+    zoom_run_pressed = 0;
     doom_log_checkpoint("task-start");
     key_read = 0;
     key_write = 0;
@@ -1025,6 +1037,7 @@ static struct menu_entry doom550d_menu[] =
 #define DOOM_BGMT_MENU             0x06
 #define DOOM_BGMT_INFO             0x07
 #define DOOM_BGMT_PLAY             0x09
+#define DOOM_BGMT_TRASH            0x0a
 #define DOOM_BGMT_PRESS_ZOOM_IN    0x0b
 #define DOOM_BGMT_UNPRESS_ZOOM_IN  0x0c
 #define DOOM_BGMT_PRESS_ZOOM_OUT   0x0d
@@ -1034,10 +1047,6 @@ static struct menu_entry doom550d_menu[] =
 #define DOOM_BGMT_UNPRESS_HALFSHUTTER 0x40
 #define DOOM_BGMT_PRESS_FULLSHUTTER   0x41
 #define DOOM_BGMT_UNPRESS_FULLSHUTTER 0x42
-
-#define DOOM_OLC_EVENT                0x56
-#define DOOM_FRONT_BUTTON_ARG         0x09
-#define DOOM_FRONT_BUTTON_FLAG        0x04000000
 
 static unsigned int doom550d_keypress_raw(unsigned int context)
 {
@@ -1053,24 +1062,6 @@ static unsigned int doom550d_keypress_raw(unsigned int context)
         return 1;
 
     key = event->param;
-
-    /*
-     * De voorste scherptediepteknop verschijnt op de 550D als een
-     * OLC-event. De status staat in bit 0x04000000 van event->obj.
-     */
-    if (key == DOOM_OLC_EVENT &&
-        event->arg == DOOM_FRONT_BUTTON_ARG &&
-        event->obj)
-    {
-        uint32_t flags = *(volatile uint32_t *)event->obj;
-
-        if (!menuactive && (flags & DOOM_FRONT_BUTTON_FLAG))
-            queue_key(1, KEY_RSHIFT);
-        else
-            release_key(KEY_RSHIFT);
-
-        return 0;
-    }
 
     switch (key)
     {
@@ -1129,14 +1120,12 @@ static unsigned int doom550d_keypress_raw(unsigned int context)
             release_key(KEY_FIRE);
             return 0;
 
-        /*
-         * De ontspanknop start Canon-schermacties en wordt daarom
-         * niet als Doom-besturing gebruikt.
-         */
         case DOOM_BGMT_PRESS_HALFSHUTTER:
         case DOOM_BGMT_UNPRESS_HALFSHUTTER:
         case DOOM_BGMT_PRESS_FULLSHUTTER:
         case DOOM_BGMT_UNPRESS_FULLSHUTTER:
+            /* Canon handles autofocus before the GUI event reaches modules.
+             * Consume the event here, but never use it for Doom controls. */
             release_key(KEY_FIRE);
             return 0;
 
@@ -1164,25 +1153,32 @@ static unsigned int doom550d_keypress_raw(unsigned int context)
 
         case DOOM_BGMT_PRESS_ZOOM_OUT:
             if (!menuactive)
-                queue_key(1, KEY_STRAFE_L);
+                queue_key(1, KEY_RALT);
             return 0;
 
         case DOOM_BGMT_UNPRESS_ZOOM_OUT:
-            release_key(KEY_STRAFE_L);
+            release_key(KEY_RALT);
             return 0;
 
         case DOOM_BGMT_PRESS_ZOOM_IN:
-            if (!menuactive)
-                queue_key(1, KEY_STRAFE_R);
+            zoom_run_pressed = 1;
+            update_run_key();
             return 0;
 
         case DOOM_BGMT_UNPRESS_ZOOM_IN:
-            release_key(KEY_STRAFE_R);
+            zoom_run_pressed = 0;
+            update_run_key();
             return 0;
 
         case DOOM_BGMT_Q:
             release_game_keys();
             tap_key('y');
+            return 0;
+
+        /* Never let Delete open a hidden Magic Lantern menu over Doom. */
+        case DOOM_BGMT_TRASH:
+            release_game_keys();
+            tap_key(KEY_ESCAPE);
             return 0;
 
         case DOOM_BGMT_MENU:

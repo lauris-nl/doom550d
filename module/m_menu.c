@@ -635,14 +635,33 @@ void M_DoSave(int slot)
 //
 void M_SaveSelect(int choice)
 {
+#ifdef CONFIG_MAGICLANTERN
+    /* There is no keyboard on the camera. Selecting a slot therefore saves
+     * immediately, retaining an existing description or assigning a useful
+     * name to an empty slot. */
+    saveSlot = choice;
+
+    if (!strcmp(savegamestrings[choice], EMPTYSTRING))
+    {
+        DEH_snprintf(
+            savegamestrings[choice],
+            SAVESTRINGSIZE,
+            "MAP %02d",
+            gamemap
+        );
+    }
+
+    M_DoSave(choice);
+#else
     // we are going to be intercepting all chars
     saveStringEnter = 1;
     
     saveSlot = choice;
     M_StringCopy(saveOldString,savegamestrings[choice], SAVESTRINGSIZE);
     if (!strcmp(savegamestrings[choice], EMPTYSTRING))
-	savegamestrings[choice][0] = 0;
+	 savegamestrings[choice][0] = 0;
     saveCharIndex = strlen(savegamestrings[choice]);
+#endif
 }
 
 //

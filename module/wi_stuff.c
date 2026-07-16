@@ -1562,8 +1562,13 @@ static void WI_loadUnloadData(load_callback_t callback)
     {
 	for (i=0 ; i<NUMCMAPS ; i++)
 	{
-	    DEH_snprintf(name, 9, "CWILV%2.2d", i);
-            callback(name, &lnames[i]);
+	    /* Canon's formatter does not understand the old "%2.2d" form
+	     * and produces "CWILV.2d". Build the fixed-width lump name
+	     * directly so finishing a commercial map cannot request -1. */
+	    memcpy(name, "CWILV00", 8);
+	    name[5] = '0' + i / 10;
+	    name[6] = '0' + i % 10;
+	    callback(name, &lnames[i]);
 	}
     }
     else

@@ -426,6 +426,29 @@ void Z_CheckHeap (void)
 //
 // Z_ChangeTag
 //
+int Z_OwnsPointer(void *ptr, void *owner)
+{
+    byte *zone_start;
+    byte *zone_end;
+    memblock_t *block;
+
+    if (!mainzone || !ptr || !owner)
+        return false;
+
+    zone_start = (byte *)mainzone;
+    zone_end = zone_start + mainzone->size;
+
+    if ((byte *)ptr < zone_start + sizeof(memzone_t) + sizeof(memblock_t)
+        || (byte *)ptr >= zone_end)
+        return false;
+
+    block = (memblock_t *)((byte *)ptr - sizeof(memblock_t));
+
+    return block->id == ZONEID
+        && block->tag != PU_FREE
+        && block->user == (void **)owner;
+}
+
 void Z_ChangeTag2(void *ptr, int tag, char *file, int line)
 {
     memblock_t*	block;

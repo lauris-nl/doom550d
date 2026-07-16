@@ -1,24 +1,41 @@
-# Doom 550D v0.2.0-beta.1
+# Doom 550D v0.3.0-beta.1
 
-This beta was tested on a Canon EOS 550D with firmware 1.0.9. The installed
-`doom.mo` was marked **very good** after physical-camera testing.
+This beta was physically tested on a Canon EOS 550D with firmware 1.0.9. It is
+the best playable build tested so far, with fluid gameplay, working effects
+and stable low-CPU music.
 
 ## Highlights
 
-- Select up to 32 Doom-family IWADs from the Magic Lantern Games menu.
-- Keep savegames strictly separated for every WAD filename.
-- Persist Doom menu, music-volume, and sound-effect settings.
-- Play MUS music and mix it with Doom sound effects through the camera speaker.
-- Restore Magic Lantern input, display, palette, and audio state on exit.
+- Play MUS music through a richer 24-voice, 24 kHz low-CPU synthesizer.
+- Mix music and Doom's original 8-bit effects into the 48 kHz camera output.
+- Use independent in-game music and sound-effect volume controls.
+- Hold zoom in (`+`) to run.
+- Hold zoom out (`-`) while pressing left/right to strafe.
+- Save directly with SET while retaining separate saves for every IWAD.
 
-## Important fixes
+## Stability and input fixes
 
-- Canon file reads are split into chunks accepted by Magic Lantern FIO.
-- Save paths use short hashed names and are checked before the game starts.
-- Virtual camera-control codes 160-163 now survive saving and reloading, fixing
-  SET/fire, PLAY/use, and both strafe controls after a camera restart.
-- WAD changes within one camera session are blocked to prevent mixed engine
-  state and memory corruption.
+- Validate WAD cache ownership after loading saves, avoiding stale cache
+  pointers and the `Z_ChangeTag: block without a ZONEID` module crash.
+- Reset queued camera input after a successful save, preventing controls from
+  becoming stuck while music continues.
+- Intercept Delete/Trash as Doom Escape so it cannot open a hidden Magic
+  Lantern menu over the game.
+- Avoid ISO, depth-of-field and shutter controls because Canon can process
+  them before the module and display EOS overlays or steal input.
+- Preserve display, palette, input and audio cleanup across repeated runs.
+- Retain the commercial MAP01 intermission-name bounds fix.
+
+## Music backend
+
+The synthesizer supports 24 voices, multiple inexpensive waveforms, General
+MIDI instrument families, percussion, envelopes, channel volume and pitch
+bend. It is designed to provide an AdLib-like retro sound without the CPU cost
+that made the earlier cycle-level OPL2 experiments unstable on the 550D. It is
+not cycle-accurate OPL2 emulation.
+
+Audio timing is recorded in `ML/LOGS/DOOM550D.LOG`. The tested build reported
+no missed audio deadlines during successful gameplay sessions.
 
 ## Installation and compatibility
 
@@ -40,8 +57,8 @@ No WAD files or other copyrighted game assets are included.
 - The selector checks `.wad` plus the `IWAD` header but does not yet fully
   reject non-Doom games.
 - PWAD/mod loading is not implemented.
-- Music currently uses a low-CPU square-wave synthesizer.
 - WAD switching requires a camera restart.
+- At most 32 IWADs are listed.
 - Multiplayer is not supported.
 - Logs retain only the most recent run.
 
@@ -49,5 +66,5 @@ No WAD files or other copyrighted game assets are included.
 
 ```text
 doom.mo
-SHA-256: a8c32cdf85231079f0ee7ad3ccbcb065792483ae9759c911640526c3d77446b8
+SHA-256: 1030f91aac3a622b4bfb86f9fe9244e1c28a730da7585f58d2a0e0113c50fc29
 ```

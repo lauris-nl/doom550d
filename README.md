@@ -5,8 +5,9 @@ Doom running as a Magic Lantern module on the Canon EOS 550D / Rebel T2i / Kiss 
 This repository contains the module source and release documentation. It does
 not contain Doom, Freedoom, or any other WAD data.
 
-> Status: beta/experimental. The `v0.2.0-beta.1` build was tested on a Canon
-> EOS 550D and marked **very good**, but it is not intended for other cameras.
+> Status: beta/experimental. The `v0.3.0-beta.1` build is physically tested on
+> a Canon EOS 550D and is the best playable build tested so far. It is not
+> intended for other cameras.
 
 ## Screenshots
 
@@ -21,13 +22,13 @@ not contain Doom, Freedoom, or any other WAD data.
 ## Features
 
 - selectable Doom-family IWADs from the Magic Lantern Games menu;
-- up to 32 IWAD files in `ML/DOOM/`;
+- up to 32 alphabetically sorted IWAD files in `ML/DOOM/`;
 - separate save slots for every exact WAD filename;
 - persistent Doom menu, sound, and music settings;
-- Doom MUS playback mixed with 8-bit sound effects;
-- 48 kHz mono output through the camera speaker;
+- low-CPU MUS music with 24 voices, instrument families, envelopes and percussion;
+- music mixed with Doom's 8-bit effects into 48 kHz mono camera audio;
 - cleanup of input, display, palette, and audio state when Doom exits;
-- Canon 550D press/release controls, including held movement keys.
+- Canon 550D press/release controls, including held run and strafe modifiers.
 
 ## Supported release target
 
@@ -37,7 +38,7 @@ not contain Doom, Freedoom, or any other WAD data.
   `magiclantern_simplified` tree
 - released module filename: `doom.mo`
 
-The beta binary was built from Magic Lantern base commit
+The release binary was built from Magic Lantern base commit
 `8f8fb3e2f97f156a30da62feeadbfc62244b33bc`. Keep `autoexec.bin`,
 `550D_109.sym`, and `doom.mo` from compatible builds together. A module built
 against different exported symbols may fail to load.
@@ -82,7 +83,9 @@ Do not install this binary on another camera model or firmware version.
 6. In the Magic Lantern Games menu, select **Doom > WAD**.
 7. Restart the camera after changing the selected WAD, then start Doom.
 
-The module creates and manages `ML/DOOM/SAVES` and `ML/DOOM/CONFIG`.
+The module creates and manages `ML/DOOM/SAVES` and `ML/DOOM/CONFIG`. If no
+usable IWAD is found, the camera displays a clear message instead of starting
+the engine.
 
 > WAD files are copyrighted game data. They are not included in this
 > repository or its releases.
@@ -122,17 +125,19 @@ Download links for freely distributable or commercially available data:
 | Camera control | Doom action |
 | --- | --- |
 | Arrow keys | Move forward/back and turn |
-| Zoom out/in | Strafe left/right |
+| Hold zoom in (`+`) | Run |
+| Hold zoom out (`-`) + left/right | Strafe left/right |
 | SET | Fire; confirm in menus |
 | PLAY | Use/open doors and switches |
 | Rear wheel | Previous/next owned weapon |
 | DISP. (called INFO internally by Magic Lantern) | Automap; back while in menus |
 | MENU | Open/close the Doom menu |
+| Delete/Trash | Escape/back; the Magic Lantern menu is blocked while Doom runs |
 | Q | Confirm the Doom quit dialog |
-| Front depth-of-field button | Run/speed; experimental |
 
-The Canon shutter buttons are deliberately consumed without firing because
-they otherwise start Canon camera actions.
+ISO, the depth-of-field button and the shutter buttons are deliberately not
+used as Doom actions. Canon handles them below the module input layer and can
+otherwise show EOS overlays, autofocus, or steal the game controls.
 
 ## Saves and settings
 
@@ -141,6 +146,10 @@ Savegames are separated by a hash of the exact selected WAD filename:
 ```text
 ML/DOOM/SAVES/<iwad-hash>.D<slot>
 ```
+
+Selecting a save slot with SET writes it directly; existing descriptions are
+retained and empty slots receive a map description. Input state is reset after
+a successful save so the controls do not remain stuck.
 
 Doom menu settings, music volume, and sound-effect volume are stored in:
 
@@ -152,13 +161,18 @@ The selected WAD is stored in the Magic Lantern module configuration.
 
 ## Audio
 
-The module reads MUS lumps directly from the selected IWAD. Its lightweight
-integer square-wave synthesizer mixes music with Doom's 8-bit samples into one
-48 kHz mono ASIF-DMA stream. Music and sound-effect levels are controlled from
-the normal Doom sound menu.
+The module reads MUS lumps directly from the selected IWAD. A low-CPU integer
+synthesizer renders 24 voices at 24 kHz and duplicates the result into the
+48 kHz Canon output, where it is mixed with Doom's original 8-bit sound
+effects. General MIDI program families select square, pulse, triangle or saw
+characters; percussion also uses noise. Attack, decay, sustain, release,
+channel volume and pitch bend are supported.
 
-The synthesizer is intentionally inexpensive but does not yet sound like an
-OPL2/AdLib implementation. Audio quality is a planned improvement.
+This gives an AdLib-like retro character while remaining light enough for
+fluid gameplay on the 550D. It is not cycle-accurate OPL2 emulation. Music and
+sound-effect levels are controlled independently from Doom's sound menu.
+Audio timing and missed buffer deadlines are written to
+`ML/LOGS/DOOM550D.LOG` when Doom exits.
 
 ## Building `doom.mo`
 
@@ -197,7 +211,7 @@ ignored by Git.
 - at most 32 IWADs are listed;
 - incompatible non-Doom IWADs are not yet rejected reliably;
 - PWAD/mod selection is not implemented;
-- music uses a basic square-wave synthesizer;
+- the synthesizer is AdLib-like, not cycle-accurate OPL2;
 - multiplayer/network play is not supported;
 - logs currently retain only the most recent run;
 - this remains experimental software: keep SD-card backups.

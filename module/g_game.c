@@ -1625,6 +1625,7 @@ void G_DoLoadGame (void)
 
     // draw the pattern into the back screen
     R_FillBackScreen ();
+
 }
 
 
@@ -1773,6 +1774,10 @@ void G_DoSaveGame (void)
 
     // draw the pattern into the back screen
     R_FillBackScreen ();
+
+    /* Discard camera events accumulated while the card write was in
+     * progress. Fresh input starts on the next physical button press. */
+    DG_ResetInput();
 }
 
 
@@ -2389,4 +2394,3 @@ boolean G_CheckDemoStatus (void)
 
     return false;
 }
-

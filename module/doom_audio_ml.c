@@ -1,10 +1,12 @@
 #include <audio.h>
 #include <dryos.h>
+#include <fio-ml.h>
 #include <mem.h>
 #include <module.h>
 
 #include "deh_str.h"
 #include "doom_audio_ml.h"
+#include "doom_softsynth.h"
 #include "doomtype.h"
 #include "i_sound.h"
 #include "w_wad.h"
@@ -15,10 +17,10 @@
 #define BUFFER_SAMPLES 4096
 #define SFX_CHANNELS 16
 #define MUS_CHANNELS 16
-#define MUS_VOICES 32
 #define MUS_TICK_RATE 140
-#define MUSIC_PEAK 20000
+#define MUSIC_PEAK 26000
 #define OUTPUT_PEAK 30000
+#define DOOM_LOG_FILE "ML/LOGS/DOOM550D.LOG"
 
 extern void StartASIFDMADAC(void *, int, void *, int, void (*)(void *), void *);
 extern void SetNextASIFDACBuffer(void *, int);
@@ -49,23 +51,12 @@ typedef struct
 
 typedef struct
 {
-    int active;
-    int channel;
-    int note;
-    int amplitude;
-    unsigned int phase;
-    unsigned int period;
-} mus_voice_t;
-
-typedef struct
-{
     const uint8_t *data;
     int cursor;
     int end;
     int samples_to_event;
     int tick_remainder;
     uint8_t velocity[MUS_CHANNELS];
-    mus_voice_t voices[MUS_VOICES];
 } mus_state_t;
 
 typedef struct
@@ -75,6 +66,7 @@ typedef struct
 } song_t;
 
 static int16_t buffers[2][BUFFER_SAMPLES];
+static int16_t music_buffer[BUFFER_SAMPLES];
 static sfx_channel_t sfx[SFX_CHANNELS];
 static sfx_cache_t *cache_list;
 static mus_state_t mus;
@@ -86,6 +78,10 @@ static int music_looping;
 static int music_volume = 96;
 static int next_buffer;
 static int sfx_prefix;
+static unsigned int render_peak_ms;
+static unsigned int render_deadline_misses;
+static unsigned int music_input_peak;
+static unsigned int music_output_peak;
 
 /* Chocolate Doom binds these legacy SDL settings when sound is enabled. */
 int use_libsamplerate = 0;
@@ -127,49 +123,19 @@ static int mus_header(const uint8_t *data, int size, int *start, int *end)
     return 1;
 }
 
-static unsigned int note_period(int note)
-{
-    static const unsigned int base[12] =
-    {
-        8176, 8662, 9177, 9723, 10300, 10913,
-        11562, 12250, 12978, 13750, 14568, 15434
-    };
-    unsigned int frequency = base[note % 12] << (note / 12);
-    unsigned int period = 48000000U / frequency;
-    return period < 2 ? 2 : period;
-}
-
 static void voices_stop(void)
 {
-    int i;
-    for (i = 0; i < MUS_VOICES; i++) mus.voices[i].active = 0;
+    doom_softsynth_all_notes_off();
 }
 
 static void note_stop(int channel, int note)
 {
-    int i;
-    for (i = 0; i < MUS_VOICES; i++)
-        if (mus.voices[i].active && mus.voices[i].channel == channel
-            && mus.voices[i].note == note)
-            mus.voices[i].active = 0;
+    doom_softsynth_note_off(channel, note);
 }
 
 static void note_start(int channel, int note, int velocity)
 {
-    mus_voice_t *voice = NULL;
-    int i;
-
-    note_stop(channel, note);
-    if (!velocity) return;
-    for (i = 0; i < MUS_VOICES; i++)
-        if (!mus.voices[i].active) { voice = &mus.voices[i]; break; }
-    if (!voice) voice = &mus.voices[0];
-    voice->active = 1;
-    voice->channel = channel;
-    voice->note = note;
-    voice->amplitude = velocity * 32;
-    voice->phase = 0;
-    voice->period = note_period(note);
+    doom_softsynth_note_on(channel, note, velocity);
 }
 
 static int mus_reset(const uint8_t *data, int size)
@@ -184,6 +150,7 @@ static int mus_reset(const uint8_t *data, int size)
     mus.cursor = start;
     mus.end = end;
     for (i = 0; i < MUS_CHANNELS; i++) mus.velocity[i] = 127;
+    doom_softsynth_reset_song();
     return 1;
 }
 
@@ -242,12 +209,20 @@ static int mus_group(void)
                 break;
             }
             case 0x20:
+                if (!mus_byte(&value)) return 0;
+                doom_softsynth_pitch(channel, value);
+                break;
             case 0x30:
                 if (!mus_byte(&value)) return 0;
+                doom_softsynth_system_event(channel, value);
                 break;
             case 0x40:
-                if (!mus_byte(&value) || !mus_byte(&value)) return 0;
+            {
+                uint8_t controller;
+                if (!mus_byte(&controller) || !mus_byte(&value)) return 0;
+                doom_softsynth_controller(channel, controller, value);
                 break;
+            }
             case 0x60:
                 voices_stop();
                 if (music_looping && song) return mus_reset(song->data, song->length);
@@ -261,24 +236,56 @@ static int mus_group(void)
     return mus_delay();
 }
 
-static int music_sample(void)
+static void music_render(int16_t *buffer, int samples)
 {
-    int mixed = 0;
-    int i;
+    int position = 0;
 
-    if (!music_running || music_paused) return 0;
-    while (music_running && mus.samples_to_event == 0)
-        if (!mus_group()) { music_running = 0; voices_stop(); return 0; }
-    for (i = 0; i < MUS_VOICES; i++)
+    if (!music_running || music_paused)
     {
-        mus_voice_t *voice = &mus.voices[i];
-        if (!voice->active) continue;
-        mixed += voice->phase < voice->period / 2
-            ? voice->amplitude : -voice->amplitude;
-        if (++voice->phase >= voice->period) voice->phase = 0;
+        memset(buffer, 0, samples * sizeof(*buffer));
+        return;
     }
-    if (mus.samples_to_event > 0) mus.samples_to_event--;
-    return clamp(mixed, MUSIC_PEAK) * music_volume / 127;
+
+    while (position < samples)
+    {
+        int run;
+        int i;
+        while (music_running && mus.samples_to_event == 0)
+            if (!mus_group())
+            {
+                music_running = 0;
+                voices_stop();
+                break;
+            }
+        if (!music_running)
+        {
+            memset(buffer + position, 0,
+                   (samples - position) * sizeof(*buffer));
+            return;
+        }
+
+        run = samples - position;
+        if (run > mus.samples_to_event) run = mus.samples_to_event;
+        doom_softsynth_render_48k(buffer + position, run);
+        for (i = 0; i < run; i++)
+        {
+            int input = buffer[position + i];
+            int output;
+            unsigned int absolute = input < 0 ? (unsigned int)-input
+                                               : (unsigned int)input;
+            if (absolute > music_input_peak) music_input_peak = absolute;
+
+            /* 50% (64) is unity. The upper half is real music-only gain. */
+            output = input * music_volume / 64;
+            output = clamp(output, MUSIC_PEAK);
+            absolute = output < 0 ? (unsigned int)-output
+                                  : (unsigned int)output;
+            if (absolute > music_output_peak) music_output_peak = absolute;
+            buffer[position + i] = output;
+        }
+        position += run;
+        mus.samples_to_event -= run;
+    }
 }
 
 static int sfx_sample(void)
@@ -305,8 +312,40 @@ static int sfx_sample(void)
 static void render(int16_t *buffer)
 {
     int i;
+    music_render(music_buffer, BUFFER_SAMPLES);
     for (i = 0; i < BUFFER_SAMPLES; i++)
-        buffer[i] = clamp(music_sample() + sfx_sample(), OUTPUT_PEAK);
+        buffer[i] = clamp(music_buffer[i] + sfx_sample(), OUTPUT_PEAK);
+}
+
+static void log_audio_timing(unsigned int peak, unsigned int misses)
+{
+    FILE *file;
+    char text[192];
+    int length = snprintf(text, sizeof(text),
+        "audio softsynth-24k peak_ms=%d deadline_misses=%d "
+        "music_volume=%d pre_peak=%d post_peak=%d\n",
+        (int)peak, (int)misses, music_volume,
+        (int)music_input_peak, (int)music_output_peak);
+
+    if (length <= 0) return;
+    if (length >= (int)sizeof(text)) length = sizeof(text) - 1;
+    file = FIO_OpenFile(DOOM_LOG_FILE, O_RDWR | O_SYNC);
+    if (!file) file = FIO_CreateFile(DOOM_LOG_FILE);
+    if (!file) return;
+    FIO_SeekSkipFile(file, 0, SEEK_END);
+    FIO_WriteFile(file, text, length);
+    FIO_CloseFile(file);
+}
+
+static void render_timed(int16_t *buffer)
+{
+    unsigned int started = get_ms_clock();
+    unsigned int elapsed;
+
+    render(buffer);
+    elapsed = get_ms_clock() - started;
+    if (elapsed > render_peak_ms) render_peak_ms = elapsed;
+    if (elapsed > 85) render_deadline_misses++;
 }
 
 static void stopped(void *ctx)
@@ -321,7 +360,7 @@ static void next(void *ctx)
 {
     (void)ctx;
     if (!audio_running) return;
-    render(buffers[next_buffer]);
+    render_timed(buffers[next_buffer]);
     SetNextASIFDACBuffer(buffers[next_buffer], sizeof(buffers[next_buffer]));
     next_buffer = !next_buffer;
 }
@@ -334,8 +373,12 @@ static int audio_start(void)
         printf("doom550d: Canon audio output is already in use\n");
         return 0;
     }
-    render(buffers[0]);
-    render(buffers[1]);
+    render_peak_ms = 0;
+    render_deadline_misses = 0;
+    music_input_peak = 0;
+    music_output_peak = 0;
+    render_timed(buffers[0]);
+    render_timed(buffers[1]);
     next_buffer = 0;
     audio_running = 1;
     beep_playing = 1;
@@ -359,6 +402,16 @@ void doom_audio_ml_force_shutdown(void)
     {
         StopASIFDMADAC(stopped, 0);
         while (audio_running) msleep(20);
+    }
+    if (render_peak_ms)
+    {
+        printf("doom550d: audio render peak %d ms, deadline misses %d\n",
+               (int)render_peak_ms, (int)render_deadline_misses);
+        log_audio_timing(render_peak_ms, render_deadline_misses);
+        render_peak_ms = 0;
+        render_deadline_misses = 0;
+        music_input_peak = 0;
+        music_output_peak = 0;
     }
 }
 
@@ -479,8 +532,21 @@ static void sound_precache(sfxinfo_t *sounds, int count)
     (void)count;
 }
 
-static boolean music_init(void) { return audio_start() ? true : false; }
-static void music_shutdown(void) { doom_audio_ml_force_shutdown(); }
+static boolean music_init(void)
+{
+    if (!doom_softsynth_init(AUDIO_RATE)) return false;
+    if (!audio_start())
+    {
+        doom_softsynth_shutdown();
+        return false;
+    }
+    return true;
+}
+static void music_shutdown(void)
+{
+    doom_audio_ml_force_shutdown();
+    doom_softsynth_shutdown();
+}
 static void music_set_volume(int volume) { music_volume = volume; }
 static void music_pause(void) { music_paused = 1; }
 static void music_resume(void) { music_paused = 0; }
