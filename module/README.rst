@@ -40,8 +40,8 @@ Audio
 -----
 
 MUS music and Doom's 8-bit sound effects are mixed into one 48 kHz mono Canon
-ASIF-DMA stream. Disable ``musplay.mo`` because both modules use the same audio
-output.
+ASIF-DMA stream. The installed Magic Lantern core and ``550D_109.sym`` must
+export the Canon audio functions required by the module.
 
 This module is only for the Canon EOS 550D with firmware 1.0.9. It remains
 experimental; back up the SD card before installation.

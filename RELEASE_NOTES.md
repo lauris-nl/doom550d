@@ -24,10 +24,14 @@ This beta was tested on a Canon EOS 550D with firmware 1.0.9. The installed
 
 - Target: Canon EOS 550D / Rebel T2i / Kiss X4, firmware 1.0.9 only.
 - Install as `ML/MODULES/doom.mo`.
-- Disable `musplay.mo` because both modules own the Canon audio output.
 - Use a matching Magic Lantern `autoexec.bin` and `550D_109.sym`.
 - Copy legally obtained Doom-compatible IWADs to `ML/DOOM/`.
 - Restart the camera after changing the selected WAD.
+
+The required Canon audio stubs are already present in the documented Magic
+Lantern base commit; no Doom-specific core modification is required. An older
+Magic Lantern build must be replaced or rebuilt if its symbol file does not
+export the audio functions listed in the README.
 
 No WAD files or other copyrighted game assets are included.
 

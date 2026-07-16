@@ -42,12 +42,34 @@ The beta binary was built from Magic Lantern base commit
 `550D_109.sym`, and `doom.mo` from compatible builds together. A module built
 against different exported symbols may fail to load.
 
+No Doom-specific Magic Lantern core modification is required for audio. The
+required Canon audio stubs are already present in the base commit above. The
+installed `550D_109.sym` must export these symbols:
+
+```text
+PowerAudioOutput
+SetAudioVolumeOut
+SetNextASIFDACBuffer
+SetSamplingRate
+StartASIFDMADAC
+StopASIFDMADAC
+audio_configure
+beep_playing
+```
+
+If an older Magic Lantern installation does not export all eight names, build
+and install a matching `autoexec.bin` and `550D_109.sym` before loading the
+module. Building that ML base with GCC 16 additionally requires the known
+`src/tskmon.c` compiler-version guard adjustment; it does not change Doom or
+the runtime audio implementation.
+
 Do not install this binary on another camera model or firmware version.
 
 ## Installation
 
 1. Back up the SD card and verify that Magic Lantern works normally.
-2. Disable or remove `musplay.mo`; it uses the same Canon audio output.
+2. Verify that `autoexec.bin` and `550D_109.sym` come from a compatible Magic
+   Lantern 550D.109 build.
 3. Copy the released module to:
 
    ```text
