@@ -1,8 +1,8 @@
-# Doom 550D v0.3.0-beta.1
+# Doom 550D v0.3.0
 
-This beta was physically tested on a Canon EOS 550D with firmware 1.0.9. It is
-the best playable build tested so far, with fluid gameplay, working effects
-and stable low-CPU music.
+This release was physically tested on a Canon EOS 550D with firmware 1.0.9.
+It is the best playable build tested so far, with fluid gameplay, working
+effects and stable low-CPU music.
 
 ## Highlights
 

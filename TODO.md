@@ -24,7 +24,7 @@
 - Continue long-duration save/load, quit, repeated-start, palette and control
   regression testing.
 
-## Completed in v0.3.0-beta.1
+## Completed in v0.3.0
 
 - Add a richer 24-voice, 24 kHz low-CPU music synthesizer.
 - Add instrument families, envelopes, percussion, channel volume and pitch
