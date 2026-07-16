@@ -12,6 +12,10 @@
 
 - Reject Heretic, Hexen, Strife, Doom 64 and other incompatible IWADs before
   launch instead of checking only the `IWAD` header.
+- Add the Chocolate Doom DEHACKED parser and load Hacx 1.2's embedded
+  `DEHACKED` lump before the title loop. Verify its music-name replacements,
+  weapons, enemies, all maps, saves and repeated starts. A one-off
+  `D_DM2TTL` to `D_HAXTTL` alias is not a complete Hacx compatibility fix.
 - Add base-IWAD plus PWAD selection for compatible level packs such as SIGIL
   and the Master Levels.
 - Investigate safe WAD switching without a full camera reboot.
@@ -20,7 +24,8 @@
 
 - Preserve or rotate logs per WAD instead of overwriting the previous run.
 - Record loaded game mode/version in failure logs.
-- Test canonical Doom, Doom II, TNT, Plutonia, Freedoom and Hacx IWADs.
+- Test canonical Doom, Doom II, TNT, Plutonia and Freedoom IWADs.
+- Run the complete Hacx regression test after DEHACKED support is implemented.
 - Continue long-duration save/load, quit, repeated-start, palette and control
   regression testing.
 

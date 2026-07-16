@@ -107,11 +107,16 @@ Expected Doom-family IWAD names include:
 | `freedoom1.wad` | Freedoom: Phase 1 |
 | `freedoom2.wad` | Freedoom: Phase 2 |
 | `freedm.wad` | FreeDM; primarily useful for multiplayer |
-| `hacx.wad` | Hacx 1.2 |
+| `hacx.wad` | Hacx 1.2; planned, not currently playable |
 
 The current selector checks the WAD header, not the complete game format.
 Heretic, Hexen, Strife, Doom 64, PK3 files, and source-port-specific IWADs are
 not supported even if a file happens to use an `IWAD` header.
+
+Hacx 1.2 is recognized by filename, but the current module does not include
+the DEHACKED parser required for its embedded compatibility patch. It exits at
+the title loop when `D_DM2TTL` cannot be remapped to `D_HAXTTL`. Keep
+`hacx.wad` out of the active collection until full DEHACKED support is added.
 
 Download links for freely distributable or commercially available data:
 
