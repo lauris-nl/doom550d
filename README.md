@@ -174,6 +174,65 @@ sound-effect levels are controlled independently from Doom's sound menu.
 Audio timing and missed buffer deadlines are written to
 `ML/LOGS/DOOM550D.LOG` when Doom exits.
 
+## Porting to another Magic Lantern camera
+
+The released `doom.mo` is not a portable binary. Never load the 550D module on
+another camera or firmware version. A port must be compiled against the exact
+Magic Lantern platform and firmware symbols for the target camera. Magic
+Lantern support alone does not guarantee that the display, buttons or Canon
+audio hardware use the same interface.
+
+Most of the Doom engine, WAD handling, savegame code and music synthesizer can
+be reused unchanged. The camera-facing layer needs to be checked and usually
+adapted in these areas:
+
+1. **Magic Lantern build:** build and boot the matching Magic Lantern core for
+   the exact camera and firmware. First verify that a minimal module loads.
+2. **Display and palette:** replace the 550D assumptions in `doom550d.c` about
+   the 720x480 bitmap, `BMPPITCH`, 8-bit VRAM, `LCD_Palette` and palette writes
+   through `EngDrvOut`. Confirm drawing, palette restoration and repeated game
+   starts before enabling audio.
+3. **Buttons:** determine the target camera's raw press and release event codes
+   and replace the `DOOM_BGMT_*` values. Test held directions, simultaneous
+   keys, menu navigation and release events. Do not assume the 550D button
+   numbers or even the same set of physical buttons.
+4. **Audio:** check `build/doom.dep` against the target platform's `.sym` file.
+   The current backend expects `StartASIFDMADAC`, `SetNextASIFDACBuffer`,
+   `StopASIFDMADAC`, `SetSamplingRate`, `PowerAudioOutput`,
+   `SetAudioVolumeOut`, `audio_configure` and `beep_playing`. A camera with a
+   different audio path needs a new backend, not just renamed symbols.
+5. **Storage and cleanup:** verify Canon FIO reads and writes, directory
+   creation, saves, configuration, error paths, display restoration, audio
+   shutdown and module unload on the physical camera.
+6. **Regression testing:** test several IWADs, new and overwritten saves,
+   loading, every control, repeated starts, normal quit, forced module exit and
+   at least one long play session while checking `ML/LOGS/DOOM550D.LOG`.
+
+Keep the target camera's `autoexec.bin`, platform `.sym` file and newly built
+`doom.mo` together as one matching set. A useful contribution should identify
+the camera model, firmware version, Magic Lantern commit, toolchain version,
+module dependency result and every tested control. Physical access to the
+camera is required; emulator-only testing is not enough for input, palette,
+audio timing or cleanup.
+
+### Expected effort
+
+These are estimates for one developer already comfortable with C, embedded
+debugging and Magic Lantern. They are engineering time, not guarantees; remote
+testing and unavailable camera logs can increase the calendar time greatly.
+
+| Target situation | Engineering work | Likely elapsed time |
+| --- | ---: | ---: |
+| Closely related camera with matching bitmap and audio interfaces | 3-7 working days | 1-2 weeks |
+| Different button map or display/palette behavior, but usable audio exports | 1-3 weeks | 2-6 weeks |
+| Different or undocumented audio hardware, missing exports, or another DIGIC generation | 4-8+ weeks | 1-3+ months |
+
+A first build that merely loads may take only a day. A release-quality port
+takes longer because the difficult work is safe shutdown, held-button input,
+save/load reliability, audio deadline testing and repeated physical-camera
+regression tests. A second person who owns the target camera and can return
+logs quickly can shorten the elapsed time substantially.
+
 ## Building `doom.mo`
 
 Use the Magic Lantern source tree:
