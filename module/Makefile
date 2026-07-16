@@ -11,7 +11,7 @@ DOOM_OBJS = \
     p_user r_bsp r_data r_draw r_main r_plane r_segs r_sky r_things sha1 \
     sounds statdump st_lib st_stuff s_sound tables v_video wi_stuff \
     w_checksum w_file w_main w_wad z_zone w_file_stdc i_input i_video \
-    doomgeneric doom_ml_compat
+    doomgeneric doom_ml_compat doom_audio_ml
 
 MODULE_OBJS = \
     $(BUILD_DIR)/doom550d.o \
@@ -22,6 +22,17 @@ TOP_DIR = ../..
 # Belangrijk: modules/Makefile stelt CFLAGS zelf in.
 # Onze flags moeten daarom NA deze include worden toegevoegd.
 include $(TOP_DIR)/modules/Makefile
+
+.PHONY: source-backup
+
+source-backup:
+	@./backup-source.sh
+
+# Maak de bronback-up af voordat een objectbestand wordt gecompileerd. De
+# module_complete-afhankelijkheid zorgt ook bij een reeds actuele build voor
+# een nieuw archief bij iedere expliciete make-aanroep.
+$(MODULE_OBJS): | source-backup
+$(BUILD_DIR)/module_complete: | source-backup
 
 CFLAGS += \
     -DCMAP256 \

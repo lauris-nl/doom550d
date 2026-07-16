@@ -47,6 +47,9 @@ void M_Drawer (void);
 // loads the config file.
 void M_Init (void);
 
+// Restore menu globals that would normally disappear when Doom exits.
+void M_ResetSessionState(void);
+
 // Called by intro code to force menu up upon a keypress,
 // does nothing if menu is already up.
 void M_StartControlPanel (void);

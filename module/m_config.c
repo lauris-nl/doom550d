@@ -1609,7 +1609,6 @@ static const int scantokey[128] =
 
 static void SaveDefaultCollection(default_collection_t *collection)
 {
-#if ORIGCODE
     default_t *defaults;
     int i, v;
     FILE *f;
@@ -1709,7 +1708,6 @@ static void SaveDefaultCollection(default_collection_t *collection)
     }
 
     fclose (f);
-#endif
 }
 
 // Parses integer values in the configuration file
@@ -1754,6 +1752,15 @@ static void SetVariable(default_t *def, char *value)
             {
                 intparm = scantokey[intparm];
             }
+            else if (intparm >= KEY_STRAFE_L && intparm <= KEY_FIRE)
+            {
+                /*
+                 * Doom550D uses four virtual key codes for camera controls.
+                 * They have no DOS scancode, so SaveDefaultCollection writes
+                 * their internal values (160-163) directly. Preserve those
+                 * values when the configuration is loaded again.
+                 */
+            }
             else
             {
                 intparm = 0;
@@ -1769,13 +1776,65 @@ static void SetVariable(default_t *def, char *value)
     }
 }
 
+static void LoadDefaultLine(default_collection_t *collection, char *line)
+{
+    default_t *def;
+    char *defname;
+    char *strparm;
+    char *cursor;
+    size_t length;
+
+    cursor = line;
+
+    while (*cursor != '\0' && isspace((unsigned char)*cursor))
+        cursor++;
+
+    if (*cursor == '\0')
+        return;
+
+    defname = cursor;
+
+    while (*cursor != '\0' && !isspace((unsigned char)*cursor))
+        cursor++;
+
+    if (*cursor == '\0')
+        return;
+
+    *cursor++ = '\0';
+
+    while (*cursor != '\0' && isspace((unsigned char)*cursor))
+        cursor++;
+
+    if (*cursor == '\0')
+        return;
+
+    strparm = cursor;
+    def = SearchCollection(collection, defname);
+
+    if (def == NULL || !def->bound)
+        return;
+
+    length = strlen(strparm);
+
+    while (length > 0 && !isprint((unsigned char)strparm[length - 1]))
+        strparm[--length] = '\0';
+
+    if (length >= 2 && strparm[0] == '"' && strparm[length - 1] == '"')
+    {
+        strparm[length - 1] = '\0';
+        memmove(strparm, strparm + 1, length - 1);
+    }
+
+    SetVariable(def, strparm);
+}
+
 static void LoadDefaultCollection(default_collection_t *collection)
 {
-#if ORIGCODE
     FILE *f;
-    default_t *def;
-    char defname[80];
-    char strparm[100];
+    char line[256];
+    size_t line_length = 0;
+    int line_overflow = 0;
+    unsigned char character;
 
     // read the file in, overriding any set defaults
     f = fopen(collection->filename, "r");
@@ -1788,48 +1847,34 @@ static void LoadDefaultCollection(default_collection_t *collection)
         return;
     }
 
-    while (!feof(f))
+    while (fread(&character, 1, 1, f) == 1)
     {
-        if (fscanf(f, "%79s %99[^\n]\n", defname, strparm) != 2)
+        if (character == '\n')
         {
-            // This line doesn't match
+            if (!line_overflow)
+            {
+                line[line_length] = '\0';
+                LoadDefaultLine(collection, line);
+            }
 
+            line_length = 0;
+            line_overflow = 0;
             continue;
         }
 
-        // Find the setting in the list
+        if (line_length + 1 < sizeof(line))
+            line[line_length++] = (char)character;
+        else
+            line_overflow = 1;
+    }
 
-        def = SearchCollection(collection, defname);
-
-        if (def == NULL || !def->bound)
-        {
-            // Unknown variable?  Unbound variables are also treated
-            // as unknown.
-
-            continue;
-        }
-
-        // Strip off trailing non-printable characters (\r characters
-        // from DOS text files)
-
-        while (strlen(strparm) > 0 && !isprint(strparm[strlen(strparm)-1]))
-        {
-            strparm[strlen(strparm)-1] = '\0';
-        }
-
-        // Surrounded by quotes? If so, remove them.
-        if (strlen(strparm) >= 2
-         && strparm[0] == '"' && strparm[strlen(strparm) - 1] == '"')
-        {
-            strparm[strlen(strparm) - 1] = '\0';
-            memmove(strparm, strparm + 1, sizeof(strparm) - 1);
-        }
-
-        SetVariable(def, strparm);
+    if (line_length > 0 && !line_overflow)
+    {
+        line[line_length] = '\0';
+        LoadDefaultLine(collection, line);
     }
 
     fclose (f);
-#endif
 }
 
 // Set the default filenames to use for configuration files.
@@ -2043,9 +2088,10 @@ float M_GetFloatVariable(char *name)
 
 static char *GetDefaultConfigDir(void)
 {
-    char *result = (char *)malloc(2);
-    result[0] = '.';
-    result[1] = '\0';
+    static const char default_config_dir[] = "ML/DOOM/CONFIG/";
+    char *result = (char *)malloc(sizeof(default_config_dir));
+
+    memcpy(result, default_config_dir, sizeof(default_config_dir));
 
     return result;
 }
@@ -2126,4 +2172,3 @@ char *M_GetSaveGameDir(char *iwadname)
 
     return savegamedir;
 }
-

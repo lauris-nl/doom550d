@@ -6,6 +6,7 @@
 #include <module.h>
 #include <dryos.h>
 #include <bmp.h>
+#include <config.h>
 #include <fio-ml.h>
 #include <menu.h>
 #include <timer.h>
@@ -15,8 +16,12 @@
 #include "doomkeys.h"
 #include "i_video.h"
 #include "doomdef.h"
+#include "d_main.h"
 #include "d_player.h"
 #include "doomstat.h"
+#include "doom_audio_ml.h"
+#include "m_config.h"
+#include "p_saveg.h"
 
 #define DOOM_W 640
 #define DOOM_H 400
@@ -24,7 +29,12 @@
 #define DOOM_Y ((480 - DOOM_H) / 2)
 
 #define DOOM_LOG_FILE "ML/LOGS/DOOM550D.LOG"
-#define DOOM_WAD_FILE "ML/DOOM/doom1.wad"
+#define DOOM_WAD_DIR "ML/DOOM/"
+#define DOOM_SAVE_DIR "ML/DOOM/SAVES"
+#define DOOM_CONFIG_DIR "ML/DOOM/CONFIG"
+#define DOOM_MAX_WAD_FILES 32
+
+static CONFIG_INT("games.doom550d.wad", doom_wad_choice, -1);
 
 #define KEYQUEUE_SIZE 64
 
@@ -34,6 +44,11 @@ static volatile int doom_task_active = 0;
 static volatile uint32_t doom_start_ms = 0;
 static volatile uint32_t doom_tick_count = 0;
 static volatile uint32_t doom_draw_count = 0;
+static char doom_wad_files[DOOM_MAX_WAD_FILES][FIO_MAX_PATH_LENGTH];
+static int doom_wad_file_count = 0;
+static int doom_wad_scan_done = 0;
+static char doom_requested_wad_path[FIO_MAX_PATH_LENGTH];
+static char doom_session_wad_path[FIO_MAX_PATH_LENGTH];
 
 static unsigned short key_queue[KEYQUEUE_SIZE];
 static unsigned int key_write = 0;
@@ -475,9 +490,9 @@ void DG_SetWindowTitle(const char *title)
 
 /* Magic Lantern module */
 
-static int wad_exists(void)
+static int wad_exists(const char *path)
 {
-    FILE *file = FIO_OpenFile(DOOM_WAD_FILE, O_RDONLY | O_SYNC);
+    FILE *file = FIO_OpenFile(path, O_RDONLY | O_SYNC);
 
     if (!file)
         return 0;
@@ -486,18 +501,288 @@ static int wad_exists(void)
     return 1;
 }
 
+static int ascii_lower(int character)
+{
+    return
+        character >= 'A' && character <= 'Z'
+        ? character + ('a' - 'A')
+        : character;
+}
+
+static int wad_name_compare(const char *left, const char *right)
+{
+    while (*left && *right)
+    {
+        int difference = ascii_lower(*left) - ascii_lower(*right);
+
+        if (difference)
+            return difference;
+
+        left++;
+        right++;
+    }
+
+    return ascii_lower(*left) - ascii_lower(*right);
+}
+
+static int has_wad_extension(const char *name)
+{
+    size_t length = strlen(name);
+
+    return
+        length > 4 &&
+        name[length - 4] == '.' &&
+        ascii_lower(name[length - 3]) == 'w' &&
+        ascii_lower(name[length - 2]) == 'a' &&
+        ascii_lower(name[length - 1]) == 'd';
+}
+
+static int has_iwad_header(const char *path)
+{
+    char header[4];
+    FILE *file = FIO_OpenFile(path, O_RDONLY | O_SYNC);
+    int read;
+
+    if (!file)
+        return 0;
+
+    read = FIO_ReadFile(file, header, sizeof(header));
+    FIO_CloseFile(file);
+
+    return read == (int)sizeof(header) && !memcmp(header, "IWAD", 4);
+}
+
+static void sort_wad_files(void)
+{
+    char temporary[FIO_MAX_PATH_LENGTH];
+
+    for (int i = 0; i < doom_wad_file_count - 1; i++)
+    {
+        for (int j = i + 1; j < doom_wad_file_count; j++)
+        {
+            if (wad_name_compare(doom_wad_files[i], doom_wad_files[j]) > 0)
+            {
+                memcpy(temporary, doom_wad_files[i], sizeof(temporary));
+                memcpy(doom_wad_files[i], doom_wad_files[j], sizeof(temporary));
+                memcpy(doom_wad_files[j], temporary, sizeof(temporary));
+            }
+        }
+    }
+}
+
+static void scan_wad_files(void)
+{
+    char previous_name[FIO_MAX_PATH_LENGTH];
+    struct fio_file *file;
+    struct fio_dirent *dirent;
+
+    previous_name[0] = '\0';
+
+    if (doom_wad_choice >= 0 && doom_wad_choice < doom_wad_file_count)
+    {
+        snprintf(
+            previous_name,
+            sizeof(previous_name),
+            "%s",
+            doom_wad_files[doom_wad_choice]
+        );
+    }
+
+    doom_wad_file_count = 0;
+    file = alloc_fio_file();
+
+    if (!file)
+    {
+        doom_wad_scan_done = 1;
+        doom_wad_choice = -1;
+        return;
+    }
+
+    dirent = FIO_FindFirstEx(DOOM_WAD_DIR, file);
+
+    if (!IS_ERROR(dirent))
+    {
+        do
+        {
+            struct file_info info = convert_fio_file_info(file);
+            char path[FIO_MAX_PATH_LENGTH];
+            int path_length;
+
+            if (!info.name[0] || (info.mode & ATTR_DIRECTORY))
+                continue;
+
+            if (!has_wad_extension(info.name))
+                continue;
+
+            path_length = snprintf(
+                path,
+                sizeof(path),
+                "%s%s",
+                DOOM_WAD_DIR,
+                info.name
+            );
+
+            if (path_length < 0 || path_length >= (int)sizeof(path))
+                continue;
+
+            if (!has_iwad_header(path))
+                continue;
+
+            snprintf(
+                doom_wad_files[doom_wad_file_count],
+                sizeof(doom_wad_files[doom_wad_file_count]),
+                "%s",
+                info.name
+            );
+
+            doom_wad_file_count++;
+        }
+        while (
+            doom_wad_file_count < DOOM_MAX_WAD_FILES &&
+            FIO_FindNextEx(dirent, file) == 0
+        );
+
+        FIO_FindClose(dirent);
+    }
+
+    free(file);
+    sort_wad_files();
+    doom_wad_scan_done = 1;
+
+    if (previous_name[0])
+    {
+        for (int i = 0; i < doom_wad_file_count; i++)
+        {
+            if (!wad_name_compare(previous_name, doom_wad_files[i]))
+            {
+                doom_wad_choice = i;
+                return;
+            }
+        }
+    }
+
+    if (doom_wad_choice >= 0 && doom_wad_choice < doom_wad_file_count)
+        return;
+
+    doom_wad_choice = doom_wad_file_count ? 0 : -1;
+
+    for (int i = 0; i < doom_wad_file_count; i++)
+    {
+        if (!wad_name_compare(doom_wad_files[i], "doom1.wad"))
+        {
+            doom_wad_choice = i;
+            break;
+        }
+    }
+}
+
+static void doom_log_wad(const char *prefix, const char *path)
+{
+    char buffer[128];
+    int length = snprintf(buffer, sizeof(buffer), "%s%s\n", prefix, path);
+
+    if (length > 0)
+    {
+        unsigned int write_length =
+            length < (int)sizeof(buffer)
+            ? (unsigned int)length
+            : (unsigned int)sizeof(buffer) - 1;
+
+        doom_log_write(buffer, write_length);
+    }
+}
+
+static void show_storage_message(
+    const char *title,
+    const char *instruction
+)
+{
+    menu_redraw_blocked = 1;
+    clrscr();
+
+    bmp_printf(
+        FONT(FONT_LARGE, COLOR_WHITE, COLOR_BLACK),
+        90, 150,
+        "%s",
+        title
+    );
+    bmp_printf(
+        FONT(FONT_MED, COLOR_WHITE, COLOR_BLACK),
+        85, 235,
+        "%s",
+        instruction
+    );
+
+    msleep(5000);
+    clrscr();
+    menu_redraw_blocked = 0;
+}
+
+static void ensure_doom_directories(void)
+{
+    FIO_CreateDirectory("ML/DOOM");
+    FIO_CreateDirectory(DOOM_SAVE_DIR);
+    FIO_CreateDirectory(DOOM_CONFIG_DIR);
+}
+
+static int verify_save_storage(void)
+{
+    const char *test_path = P_TempSaveGameFile();
+    FILE *file;
+
+    doom_log_wad("Save test path: ", test_path);
+    FIO_RemoveFile(test_path);
+    file = FIO_CreateFile(test_path);
+
+    if (!file)
+    {
+        DOOM_LOG("ERROR: could not create save test file\n");
+        return 0;
+    }
+
+    FIO_CloseFile(file);
+
+    if (FIO_RemoveFile(test_path) != 0)
+    {
+        DOOM_LOG("ERROR: could not remove save test file\n");
+        return 0;
+    }
+
+    return 1;
+}
+
 static void doom550d_task(void *arg)
 {
+    const char *wad_path = doom_requested_wad_path;
+
     doom_log_reset();
 
-    if (!wad_exists())
+    if (!wad_path[0])
     {
-        DOOM_LOG("ERROR: ML/DOOM/doom1.wad not found\n");
+        DOOM_LOG("ERROR: no IWAD found in ML/DOOM\n");
+        show_storage_message(
+            "No WAD files found",
+            "Copy a Doom IWAD file to ML/DOOM"
+        );
+        doom_running = 0;
+        doom_task_active = 0;
+        return;
+    }
+
+    if (!wad_exists(wad_path))
+    {
+        doom_log_wad("ERROR: missing ", wad_path);
 
         bmp_printf(
             FONT(FONT_MED, COLOR_WHITE, COLOR_BLACK),
-            80, 200,
-            "Missing: ML/DOOM/doom1.wad"
+            80, 185,
+            "Missing selected WAD:"
+        );
+        bmp_printf(
+            FONT(FONT_MED, COLOR_WHITE, COLOR_BLACK),
+            80, 215,
+            "%s",
+            wad_path
         );
 
         msleep(3000);
@@ -506,6 +791,56 @@ static void doom550d_task(void *arg)
         doom_task_active = 0;
         return;
     }
+
+    if (doom_session_wad_path[0] && strcmp(doom_session_wad_path, wad_path))
+    {
+        doom_log_wad("ERROR: current session IWAD: ", doom_session_wad_path);
+        doom_log_wad("ERROR: requested IWAD: ", wad_path);
+        DOOM_LOG("ERROR: camera restart required before changing IWAD\n");
+
+        menu_redraw_blocked = 1;
+        clrscr();
+        bmp_printf(
+            FONT(FONT_LARGE, COLOR_WHITE, COLOR_BLACK),
+            155, 155,
+            "WAD changed"
+        );
+        bmp_printf(
+            FONT(FONT_LARGE, COLOR_WHITE, COLOR_BLACK),
+            105, 225,
+            "Restart camera"
+        );
+
+        msleep(5000);
+        clrscr();
+        menu_redraw_blocked = 0;
+        doom_running = 0;
+        doom_task_active = 0;
+        return;
+    }
+
+    snprintf(
+        doom_session_wad_path,
+        sizeof(doom_session_wad_path),
+        "%s",
+        wad_path
+    );
+    P_SetSaveGameDir(wad_path);
+
+    if (!verify_save_storage())
+    {
+        doom_log_wad("ERROR: save storage is not writable for ", wad_path);
+        show_storage_message(
+            "Save storage error",
+            "Cannot write to ML/DOOM/SAVES"
+        );
+        doom_session_wad_path[0] = '\0';
+        doom_running = 0;
+        doom_task_active = 0;
+        return;
+    }
+
+    doom_log_wad("Selected IWAD: ", wad_path);
 
     clrscr();
     menu_redraw_blocked = 1;
@@ -519,20 +854,21 @@ static void doom550d_task(void *arg)
     memset(key_state, 0, sizeof(key_state));
     memset(pulse_deadline, 0, sizeof(pulse_deadline));
     doom_raw_trace_count = 0;
+    gamestate = GS_DEMOSCREEN;
+    wipegamestate = GS_DEMOSCREEN;
+    D_ResetDisplayState();
 
     char *argv[] =
     {
         "doom",
         "-iwad",
-        DOOM_WAD_FILE,
-        "-nosound",
-        "-nomusic",
+        (char *)wad_path,
         0
     };
 
     doom_ml_exit_requested = 0;
     DOOM_LOG("Calling doomgeneric_Create\n");
-    doomgeneric_Create(5, argv);
+    doomgeneric_Create(3, argv);
     DOOM_LOG("doomgeneric_Create returned\n");
 
     while (1)
@@ -574,8 +910,10 @@ static void doom550d_task(void *arg)
 
     DOOM_LOG("Leaving Doom loop\n");
 
+    M_SaveDefaults();
     doom_raw_trace_dump();
     release_game_keys();
+    M_ResetSessionState();
     clear_doom_area();
     restore_saved_palette();
     clrscr();
@@ -591,6 +929,20 @@ static MENU_SELECT_FUNC(doom550d_start)
     if (doom_task_active)
         return;
 
+    scan_wad_files();
+    doom_requested_wad_path[0] = '\0';
+
+    if (doom_wad_choice >= 0 && doom_wad_choice < doom_wad_file_count)
+    {
+        snprintf(
+            doom_requested_wad_path,
+            sizeof(doom_requested_wad_path),
+            "%s%s",
+            DOOM_WAD_DIR,
+            doom_wad_files[doom_wad_choice]
+        );
+    }
+
     doom_task_active = 1;
 
     task_create(
@@ -602,12 +954,52 @@ static MENU_SELECT_FUNC(doom550d_start)
     );
 }
 
+static MENU_UPDATE_FUNC(doom_wad_update)
+{
+    if (!doom_wad_scan_done)
+        scan_wad_files();
+
+    if (doom_wad_choice >= 0 && doom_wad_choice < doom_wad_file_count)
+        MENU_SET_VALUE("%s", doom_wad_files[doom_wad_choice]);
+    else
+        MENU_SET_VALUE("No IWAD files");
+}
+
+static MENU_SELECT_FUNC(doom_wad_select)
+{
+    if (!doom_wad_scan_done)
+        scan_wad_files();
+
+    if (!doom_wad_file_count || !delta)
+        return;
+
+    doom_wad_choice += delta;
+
+    while (doom_wad_choice < 0)
+        doom_wad_choice += doom_wad_file_count;
+
+    while (doom_wad_choice >= doom_wad_file_count)
+        doom_wad_choice -= doom_wad_file_count;
+}
+
 static struct menu_entry doom550d_menu[] =
 {
     {
         .name = "Doom",
         .select = doom550d_start,
-        .help = "Run Doom from ML/DOOM/doom1.wad.",
+        .help = "Run Doom with the selected IWAD from ML/DOOM.",
+        .children = (struct menu_entry[])
+        {
+            {
+                .name = "WAD",
+                .priv = &doom_wad_choice,
+                .select = doom_wad_select,
+                .update = doom_wad_update,
+                .help = "Choose an IWAD found in ML/DOOM.",
+                .help2 = "PWAD level and mod files are not shown.",
+            },
+            MENU_EOL,
+        },
     }
 };
 
@@ -813,6 +1205,11 @@ static unsigned int doom550d_init(void)
     module_running = 1;
     doom_running = 0;
     doom_task_active = 0;
+    doom_wad_scan_done = 0;
+    doom_requested_wad_path[0] = '\0';
+    doom_session_wad_path[0] = '\0';
+
+    ensure_doom_directories();
 
     menu_add("Games", doom550d_menu, COUNT(doom550d_menu));
 
@@ -826,6 +1223,8 @@ static unsigned int doom550d_deinit(void)
     module_running = 0;
     doom_running = 0;
     doom_task_active = 0;
+
+    doom_audio_ml_force_shutdown();
 
     msleep(100);
     clear_doom_area();
@@ -845,3 +1244,6 @@ MODULE_CBRS_START()
     MODULE_CBR(CBR_KEYPRESS_RAW, doom550d_keypress_raw, 0)
 MODULE_CBRS_END()
 
+MODULE_CONFIGS_START()
+    MODULE_CONFIG(doom_wad_choice)
+MODULE_CONFIGS_END()

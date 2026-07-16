@@ -289,6 +289,7 @@ void I_InitGraphics (void)
 
     /* Allocate screen to draw to */
 	I_VideoBuffer = (byte*)Z_Malloc (SCREENWIDTH * SCREENHEIGHT, PU_STATIC, NULL);  // For DOOM to draw on
+	memset(I_VideoBuffer, 0, SCREENWIDTH * SCREENHEIGHT);
 
 	screenvisible = true;
 
@@ -298,7 +299,11 @@ void I_InitGraphics (void)
 
 void I_ShutdownGraphics (void)
 {
-	Z_Free (I_VideoBuffer);
+	if (I_VideoBuffer != NULL)
+	{
+		Z_Free (I_VideoBuffer);
+		I_VideoBuffer = NULL;
+	}
 }
 
 void I_StartFrame (void)

@@ -123,7 +123,7 @@ static int doom_ml_prepare_read(doom_ml_file_t *file)
 
     if (!file->read_buffer)
     {
-        file->read_buffer = doom_ml_malloc(DOOM_ML_READ_BUFFER);
+        file->read_buffer = fio_malloc(DOOM_ML_READ_BUFFER);
 
         if (!file->read_buffer)
             return -1;
@@ -327,34 +327,6 @@ size_t doom_ml_fread(
 
         file->read_pos = 0;
         file->read_used = 0;
-
-        /*
-         * Large aligned reads may go straight to the caller. Savegame reads
-         * are normally one byte and therefore use the read-ahead buffer.
-         */
-        if (requested - completed >= DOOM_ML_READ_BUFFER)
-        {
-            size_t remaining = requested - completed;
-            size_t chunk = remaining > DOOM_ML_IO_CHUNK
-                ? DOOM_ML_IO_CHUNK
-                : remaining;
-            int received = FIO_ReadFile(
-                file->handle,
-                destination + completed,
-                chunk
-            );
-
-            if (received <= 0)
-                break;
-
-            completed += (size_t)received;
-            file->position += (uint32_t)received;
-
-            if ((size_t)received < chunk)
-                break;
-
-            continue;
-        }
 
         {
             int received = FIO_ReadFile(
@@ -993,5 +965,6 @@ void doom_ml_exit(int status)
     );
 
     doom_ml_append_log(message);
-    printf("doom550d: Doom requested exit (%d)\n", status);
+    if (status != 0)
+        printf("doom550d: Doom requested exit (%d)\n", status);
 }

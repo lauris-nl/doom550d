@@ -166,6 +166,12 @@ gamestate_t     wipegamestate = GS_DEMOSCREEN;
 extern  boolean setsizeneeded;
 extern  int             showMessages;
 void R_ExecuteSetViewSize (void);
+static boolean reset_display_state;
+
+void D_ResetDisplayState(void)
+{
+    reset_display_state = true;
+}
 
 void D_Display (void)
 {
@@ -182,6 +188,17 @@ void D_Display (void)
     boolean			done;
     boolean			wipe;
     boolean			redrawsbar;
+
+    if (reset_display_state)
+    {
+        viewactivestate = false;
+        menuactivestate = false;
+        inhelpscreensstate = false;
+        fullscreen = false;
+        oldgamestate = -1;
+        borderdrawcount = 0;
+        reset_display_state = false;
+    }
 
     if (nodrawers)
     	return;                    // for comparative timing / profiling
@@ -1083,6 +1100,13 @@ static void D_Endoom(void)
 
     I_Endoom(endoom);
 
+    /*
+     * The embedded port performs one final D_Display after I_Quit returns.
+     * Force that frame through Doom's normal melt instead of depending on
+     * an incidental demo-state transition.
+     */
+    wipegamestate = -1;
+
 	exit(0);
 }
 
@@ -1356,7 +1380,7 @@ void D_DoomMain (void)
 
     // Load configuration files before initialising other subsystems.
     DEH_printf("M_LoadDefaults: Load system defaults.\n");
-    M_SetConfigFilenames("default.cfg", PROGRAM_PREFIX "doom.cfg");
+    M_SetConfigFilenames("default.cfg", "doomx.cfg");
     D_BindVariables();
     M_LoadDefaults();
 
@@ -1843,4 +1867,3 @@ void D_DoomMain (void)
 
     D_DoomLoop ();
 }
-

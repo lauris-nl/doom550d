@@ -26,9 +26,17 @@
 
 #define SAVESTRINGSIZE 24
 
+// Select a save directory derived from the exact IWAD filename.
+
+void P_SetSaveGameDir(const char *iwad_path);
+
 // temporary filename to use while saving.
 
 char *P_TempSaveGameFile(void);
+
+// recovery filename to use if the normal save cannot be opened.
+
+char *P_RecoverySaveGameFile(void);
 
 // filename to use for a savegame slot
 

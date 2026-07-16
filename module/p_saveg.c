@@ -19,6 +19,7 @@
 
 
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 #include "dstrings.h"
@@ -36,10 +37,49 @@
 
 #define SAVEGAME_EOF 0x1d
 #define VERSIONSIZE 16
+#define ML_SAVEGAME_PATH_MAX 128
+#define ML_SAVEGAME_DIR "ML/DOOM/SAVES"
 
 FILE *save_stream;
 int savegamelength;
 boolean savegame_error;
+static char ml_savegame_prefix[ML_SAVEGAME_PATH_MAX] =
+    ML_SAVEGAME_DIR "/00000000";
+
+static uint32_t SaveGameNameHash(const char *name)
+{
+    uint32_t hash = 2166136261u;
+
+    while (*name != '\0')
+    {
+        hash ^= (unsigned char)*name++;
+        hash *= 16777619u;
+    }
+
+    return hash;
+}
+
+void P_SetSaveGameDir(const char *iwad_path)
+{
+    const char *iwad_name;
+
+    if (!iwad_path || !iwad_path[0])
+    {
+        iwad_name = "unknown";
+    }
+    else
+    {
+        iwad_name = strrchr(iwad_path, DIR_SEPARATOR);
+        iwad_name = iwad_name ? iwad_name + 1 : iwad_path;
+    }
+
+    M_snprintf(
+        ml_savegame_prefix,
+        sizeof(ml_savegame_prefix),
+        ML_SAVEGAME_DIR "/%08x",
+        (unsigned int)SaveGameNameHash(iwad_name)
+    );
+}
 
 // Get the filename of a temporary file to write the savegame to.  After
 // the file has been successfully saved, it will be renamed to the
@@ -47,12 +87,18 @@ boolean savegame_error;
 
 char *P_TempSaveGameFile(void)
 {
-    static char *filename = NULL;
+    static char filename[ML_SAVEGAME_PATH_MAX];
 
-    if (filename == NULL)
-    {
-        filename = M_StringJoin("ML/DOOM/", "temp.dsg", NULL);
-    }
+    M_snprintf(filename, sizeof(filename), "%s.TMP", ml_savegame_prefix);
+
+    return filename;
+}
+
+char *P_RecoverySaveGameFile(void)
+{
+    static char filename[ML_SAVEGAME_PATH_MAX];
+
+    M_snprintf(filename, sizeof(filename), "%s.RCV", ml_savegame_prefix);
 
     return filename;
 }
@@ -61,18 +107,8 @@ char *P_TempSaveGameFile(void)
 
 char *P_SaveGameFile(int slot)
 {
-    static char *filename = NULL;
-    static size_t filename_size = 0;
-    char basename[32];
-
-    if (filename == NULL)
-    {
-        filename_size = strlen("ML/DOOM/") + 32;
-        filename = malloc(filename_size);
-    }
-
-    DEH_snprintf(basename, 32, SAVEGAMENAME "%d.dsg", slot);
-    M_snprintf(filename, filename_size, "ML/DOOM/%s", basename);
+    static char filename[ML_SAVEGAME_PATH_MAX];
+    M_snprintf(filename, sizeof(filename), "%s.D%d", ml_savegame_prefix, slot);
 
     return filename;
 }
@@ -1889,4 +1925,3 @@ void P_UnArchiveSpecials (void)
     }
 
 }
-

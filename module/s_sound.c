@@ -668,4 +668,3 @@ void S_StopMusic(void)
         mus_playing = NULL;
     }
 }
-

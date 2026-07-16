@@ -1,155 +1,193 @@
 # Doom 550D
 
-## Screenshots
-
-### Doom title screen
-![Doom title screen](screenshots/doom_title.jpg)
-
-### In-game
-![Doom running on Canon 550D](screenshots/doom_ingame1.jpg)
-
-### In-game combat
-![Doom gameplay on Canon 550D](screenshots/doom_ingame2.jpg)
-![Doom gameplay on Canon 550D](screenshots/doom_ingame3.jpg)
-![Doom gameplay on Canon 550D](screenshots/doom_menu.jpg)
-
 Doom running as a Magic Lantern module on the Canon EOS 550D / Rebel T2i / Kiss X4.
 
-This release builds a Doomgeneric module for Canon EOS 550D firmware 1.0.9.
-The module requires a supported Doom IWAD and does not include any WAD files.
+This repository contains the module source and release documentation. It does
+not contain Doom, Freedoom, or any other WAD data.
+
+> Status: beta/experimental. The `v0.2.0-beta.1` build was tested on a Canon
+> EOS 550D and marked **very good**, but it is not intended for other cameras.
+
+## Screenshots
+
+![Doom title screen](screenshots/doom_title.jpg)
+
+![Doom running on Canon 550D](screenshots/doom_ingame1.jpg)
+
+![Doom gameplay on Canon 550D](screenshots/doom_ingame2.jpg)
+
+![Doom menu on Canon 550D](screenshots/doom_menu.jpg)
+
+## Features
+
+- selectable Doom-family IWADs from the Magic Lantern Games menu;
+- up to 32 IWAD files in `ML/DOOM/`;
+- separate save slots for every exact WAD filename;
+- persistent Doom menu, sound, and music settings;
+- Doom MUS playback mixed with 8-bit sound effects;
+- 48 kHz mono output through the camera speaker;
+- cleanup of input, display, palette, and audio state when Doom exits;
+- Canon 550D press/release controls, including held movement keys.
 
 ## Supported release target
 
-* Canon EOS 550D
-* Canon firmware 1.0.9
-* Tested with Magic Lantern build 2025-06-20 for 550D.109
-* Released module filename: `doom.mo`
+- Canon EOS 550D / Rebel T2i / Kiss X4
+- Canon firmware 1.0.9
+- Magic Lantern 550D.109 core and `550D_109.sym` built from the matching
+  `magiclantern_simplified` tree
+- released module filename: `doom.mo`
+
+The beta binary was built from Magic Lantern base commit
+`8f8fb3e2f97f156a30da62feeadbfc62244b33bc`. Keep `autoexec.bin`,
+`550D_109.sym`, and `doom.mo` from compatible builds together. A module built
+against different exported symbols may fail to load.
+
+Do not install this binary on another camera model or firmware version.
 
 ## Installation
 
-1. Install and verify Magic Lantern.
-2. Copy `doom.mo` to:
+1. Back up the SD card and verify that Magic Lantern works normally.
+2. Disable or remove `musplay.mo`; it uses the same Canon audio output.
+3. Copy the released module to:
 
-    ML/MODULES/doom.mo
+   ```text
+   ML/MODULES/doom.mo
+   ```
 
-3. Create:
+4. Create `ML/DOOM/` or let the module create it.
+5. Copy one or more legally obtained Doom-compatible IWAD files into
+   `ML/DOOM/`.
+6. In the Magic Lantern Games menu, select **Doom > WAD**.
+7. Restart the camera after changing the selected WAD, then start Doom.
 
-    ML/DOOM/
+The module creates and manages `ML/DOOM/SAVES` and `ML/DOOM/CONFIG`.
 
-4. Place exactly one supported IWAD in `ML/DOOM/`.
-5. Start Doom from the Magic Lantern Games menu.
-6. Saves are stored in `ML/DOOM/` as `doomsav0.dsg`, `doomsav1.dsg`, etc.
+> WAD files are copyrighted game data. They are not included in this
+> repository or its releases.
 
-> Do not include an IWAD in this repository or release package.
+## WAD compatibility
 
-## Supported IWAD files
+The selector accepts regular `.wad` files whose first four bytes are `IWAD`.
+PWAD level and mod files are not offered as standalone games.
+
+Expected Doom-family IWAD names include:
 
 | Filename | Game |
 | --- | --- |
-| `doom1.wad` | Doom Shareware (one episode) |
+| `doom1.wad` | Doom Shareware |
 | `doom.wad` | Doom / The Ultimate Doom |
 | `doom2.wad` | Doom II |
-| `freedoom1.wad` | Freedoom: Phase 1 (four episodes) |
-| `freedoom2.wad` | Freedoom: Phase 2 (32 levels) |
+| `tnt.wad` | Final Doom: TNT Evilution |
+| `plutonia.wad` | Final Doom: Plutonia Experiment |
+| `freedoom1.wad` | Freedoom: Phase 1 |
+| `freedoom2.wad` | Freedoom: Phase 2 |
+| `freedm.wad` | FreeDM; primarily useful for multiplayer |
+| `hacx.wad` | Hacx 1.2 |
 
-These filenames must not be changed.
+The current selector checks the WAD header, not the complete game format.
+Heretic, Hexen, Strife, Doom 64, PK3 files, and source-port-specific IWADs are
+not supported even if a file happens to use an `IWAD` header.
 
-Download links:
+Download links for freely distributable or commercially available data:
 
-* Freedoom: https://freedoom.github.io/download.html
-* DOOM + DOOM II on Steam: https://store.steampowered.com/app/2280/DOOM_1993/
-* DOOM + DOOM II on GOG: https://www.gog.com/en/game/doom_doom_ii
-* Doom Shareware archive: https://www.doomworld.com/idgames/idstuff/doom/doom19s
+- Freedoom: <https://freedoom.github.io/download.html>
+- Doom + Doom II on Steam: <https://store.steampowered.com/app/2280/DOOM_1993/>
+- Doom + Doom II on GOG: <https://www.gog.com/en/game/doom_doom_ii>
+- Doom Shareware archive: <https://www.doomworld.com/idgames/idstuff/doom/doom19s>
 
 ## Controls
 
-* Arrow keys: move forward/back and turn
-* Zoom out: strafe left
-* Zoom in: strafe right
-* SET: fire or confirm a menu selection
-* PLAY: use/open doors
-* Rear wheel left/right: previous/next owned weapon
-* INFO: automap during gameplay; back in menus
-* MENU: open or close the Doom menu
-* Q: confirm the Doom quit dialog
-* Canon shutter buttons are deliberately not used
+| Camera control | Doom action |
+| --- | --- |
+| Arrow keys | Move forward/back and turn |
+| Zoom out/in | Strafe left/right |
+| SET | Fire; confirm in menus |
+| PLAY | Use/open doors and switches |
+| Rear wheel | Previous/next owned weapon |
+| INFO | Automap; back while in menus |
+| MENU | Open/close the Doom menu |
+| Q | Confirm the Doom quit dialog |
+| Front depth-of-field button | Run/speed; experimental |
 
-## Why this release is only for the 550D
+The Canon shutter buttons are deliberately consumed without firing because
+they otherwise start Canon camera actions.
 
-Doom itself is portable, but the current Magic Lantern integration is specific to the 550D.
-This build contains:
+## Saves and settings
 
-* raw Canon 550D press and release event codes
-* 550D button assignments
-* assumptions about the 550D LiveView bitmap display and palette
-* task, memory and module behavior tested only on 550D firmware 1.0.9
-* testing against the 550D.109 Magic Lantern symbols and build
+Savegames are separated by a hash of the exact selected WAD filename:
 
-Do not install this binary on another camera model.
+```text
+ML/DOOM/SAVES/<iwad-hash>.D<slot>
+```
 
-## Porting to another Magic Lantern camera
+Doom menu settings, music volume, and sound-effect volume are stored in:
 
-A port requires:
+```text
+ML/DOOM/CONFIG/
+```
 
-* a working Magic Lantern build for the exact camera firmware
-* the correct camera symbol file
-* mapping of raw button press and release events
-* verification of framebuffer address, dimensions, pitch, pixel format and palette handling
-* verification of task stack size, memory availability and file I/O
-* replacement or isolation of the 550D-specific platform code
-* tests for start, exit, restart, save, load, menus and every control
-* a separately tested release binary for each camera/firmware combination
+The selected WAD is stored in the Magic Lantern module configuration.
 
-## Building doom.mo from source
+## Audio
+
+The module reads MUS lumps directly from the selected IWAD. Its lightweight
+integer square-wave synthesizer mixes music with Doom's 8-bit samples into one
+48 kHz mono ASIF-DMA stream. Music and sound-effect levels are controlled from
+the normal Doom sound menu.
+
+The synthesizer is intentionally inexpensive but does not yet sound like an
+OPL2/AdLib implementation. Audio quality is a planned improvement.
+
+## Building `doom.mo`
 
 Use the Magic Lantern source tree:
-https://github.com/reticulatedpines/magiclantern_simplified
+<https://github.com/reticulatedpines/magiclantern_simplified>
 
 Requirements:
 
-* Git
-* GNU Make
-* Python 3
-* arm-none-eabi-gcc
-* ARM newlib headers/libraries
+- Git
+- GNU Make
+- Python 3
+- `arm-none-eabi-gcc`
+- ARM newlib headers and libraries
 
-Example:
+Place the `module/` directory from this repository at
+`modules/doom550d/` in the Magic Lantern tree, then run:
 
 ```sh
-git clone --branch dev \
-  https://github.com/reticulatedpines/magiclantern_simplified.git
-
-cd magiclantern_simplified
-
-# Place this project directory at:
-# modules/doom550d/
-
-make -C modules/doom550d clean
-make -C modules/doom550d -j"$(nproc)"
+make -C modules/doom550d -j4
 ```
 
 Output:
 
-    modules/doom550d/build/doom.mo
+```text
+modules/doom550d/build/doom.mo
+```
 
-Note: `build/` is intentionally excluded from Git.
+Every explicit module build also creates a source archive under
+`modules/doom550d/source-backups/`. Build products and source backups are
+ignored by Git.
 
 ## Known limitations
 
-* no sound or music
-* internally rendered at 320x200 and displayed at 640x400
-* only Canon EOS 550D firmware 1.0.9 is supported
-* multiplayer/network play is not supported
-* only the listed IWAD filenames are part of this release
-* experimental software: make a backup of the memory card
+- only Canon EOS 550D firmware 1.0.9 is supported;
+- changing the WAD after Doom has run requires a camera restart;
+- at most 32 IWADs are listed;
+- incompatible non-Doom IWADs are not yet rejected reliably;
+- PWAD/mod selection is not implemented;
+- music uses a basic square-wave synthesizer;
+- multiplayer/network play is not supported;
+- logs currently retain only the most recent run;
+- this remains experimental software: keep SD-card backups.
 
 ## Credits and license
 
-* Doom engine source by id Software
-* Doomgeneric
-* Chocolate Doom
-* Magic Lantern
-* Freedoom contributors
-* Bas Lichtjaar <doom@lauris.nl> and contributors to this port
+- Doom engine source by id Software
+- Doomgeneric
+- Chocolate Doom
+- Magic Lantern
+- Freedoom contributors
+- Bas Lichtjaar <doom@lauris.nl> and contributors to this port
 
-This project is released under GPL-2.0. Third-party game assets are not included.
+This project is released under GPL-2.0. Third-party game assets are not
+included.

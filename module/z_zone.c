@@ -120,7 +120,6 @@ void Z_Init (void)
     block->size = mainzone->size - sizeof(memzone_t);
 }
 
-
 //
 // Z_Free
 //
@@ -486,4 +485,3 @@ unsigned int Z_ZoneSize(void)
 {
     return mainzone->size;
 }
-

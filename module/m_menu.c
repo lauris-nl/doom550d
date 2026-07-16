@@ -2075,8 +2075,50 @@ void M_Ticker (void)
 //
 // M_Init
 //
+void M_ResetSessionState(void)
+{
+    MainMenu[readthis] = (menuitem_t){1, "M_RDTHIS", M_ReadThis, 'r'};
+
+    MainDef.numitems = main_end;
+    MainDef.y = 64;
+    MainDef.lastOn = newgame;
+
+    EpiDef.numitems = ep_end;
+    EpiDef.lastOn = ep1;
+
+    NewDef.prevMenu = &EpiDef;
+    NewDef.lastOn = hurtme;
+    OptionsDef.lastOn = 0;
+    ReadDef1.x = 280;
+    ReadDef1.y = 185;
+    ReadDef1.lastOn = 0;
+    ReadDef2.x = 330;
+    ReadDef2.y = 175;
+    ReadDef2.lastOn = 0;
+    SoundDef.lastOn = 0;
+    LoadDef.lastOn = 0;
+    SaveDef.lastOn = 0;
+
+    currentMenu = &MainDef;
+    itemOn = newgame;
+    menuactive = false;
+    inhelpscreens = false;
+    messageToPrint = 0;
+    messageString = NULL;
+    messageRoutine = NULL;
+    messageNeedsInput = false;
+    messageLastMenuActive = false;
+    saveStringEnter = 0;
+    saveSlot = 0;
+    saveCharIndex = 0;
+    quickSaveSlot = -1;
+    whichSkull = 0;
+    skullAnimCounter = 10;
+}
+
 void M_Init (void)
 {
+    M_ResetSessionState();
     currentMenu = &MainDef;
     menuactive = 0;
     itemOn = currentMenu->lastOn;
@@ -2123,4 +2165,3 @@ void M_Init (void)
 
     //opldev = M_CheckParm("-opldev") > 0;
 }
-

@@ -1,39 +1,36 @@
 # TODO
 
-## Fix Magic Lantern `FIO_ReadFile` assertion
+## Audio quality
 
-Doom may exit with this Magic Lantern assertion:
+- Replace or complement the square-wave music backend with a lightweight
+  integer OPL2/GENMIDI-style synthesizer.
+- Keep music and Doom sound effects in the same low-CPU mixer.
+- Verify clipping, channel balance, and long-session stability.
 
-```text
-ML ASSERT:
-count <= 8192
-at ../../src/fio-ml.c:641 (FIO_ReadFile)
-fixme: please use fio_malloc (in doom_task)
+## WAD handling
 
+- Reject Heretic, Hexen, Strife, Doom 64, and other incompatible IWADs before
+  launch instead of checking only the `IWAD` header.
+- Sort all candidates before applying the 32-file display limit.
+- Add basis-IWAD plus PWAD selection for compatible level packs such as SIGIL
+  and the Master Levels.
+- Investigate safe WAD switching without a full camera reboot.
 
-## Controls
+## Diagnostics and testing
 
-- Fix the front depth-of-field preview button so it correctly triggers running/speed.
+- Preserve or rotate logs per WAD instead of overwriting the previous run.
+- Record loaded game mode/version and input events in failure logs.
+- Test canonical Doom, Doom II, TNT, Plutonia, Freedoom, and Hacx IWADs.
+- Test save/load, quit wipes, repeated starts, palette restoration, and every
+  camera control for each supported release.
+- Verify the front depth-of-field run/speed button on physical hardware.
 
-## Game selection
+## Completed in v0.2.0-beta.1
 
-- Add a configuration menu in the Magic Lantern Modules menu, similar to Arkanoid.
-- Allow selecting which IWAD/game to launch:
-  - Auto
-  - Doom 1
-  - Doom 2
-  - Freedoom 1
-  - Freedoom 2
-
-## Documentation / screenshots
-
-- Add screenshots of Doom running on the Canon 550D to the repository.
-- Exclude the Arkanoid screenshot from the Doom documentation.
-
-
-Required work
-Limit every FIO_ReadFile request to a maximum of 8192 bytes.
-Use a buffer allocated with fio_malloc for direct card reads.
-Check doom_ml_compat.c for reads using larger blocks.
-Handle short reads and read errors correctly.
-Confirm that allocated FIO buffers are always freed.
+- Limit Canon `FIO_ReadFile` operations to safe chunks.
+- Select IWADs from the Magic Lantern menu.
+- Separate saves per WAD and use Canon-compatible save filenames.
+- Create and validate save/config directories automatically.
+- Persist menu, sound, music, and custom camera-control settings.
+- Mix MUS music and Doom sound effects through Canon ASIF audio.
+- Restore display, palette, input, and audio state when Doom exits.

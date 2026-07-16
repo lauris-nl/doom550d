@@ -1665,12 +1665,16 @@ void G_DoSaveGame (void)
     {
         // Failed to save the game, so we're going to have to abort. But
         // to be nice, save to somewhere else before we call I_Error().
-        recovery_savegame_file = "ML/DOOM/recover.dsg";
+        recovery_savegame_file = P_RecoverySaveGameFile();
         save_stream = fopen(recovery_savegame_file, "wb");
         if (save_stream == NULL)
         {
             I_Error("Failed to open either '%s' or '%s' to write savegame.",
                     temp_savegame_file, recovery_savegame_file);
+            gameaction = ga_nothing;
+            M_StringCopy(savedescription, "", sizeof(savedescription));
+            players[consoleplayer].message = "SAVE FAILED";
+            return;
         }
     }
 
@@ -1738,6 +1742,10 @@ void G_DoSaveGame (void)
         I_Error("Failed to open savegame file '%s' for writing.\n"
                 "But your game has been saved to '%s' for recovery.",
                 temp_savegame_file, recovery_savegame_file);
+        gameaction = ga_nothing;
+        M_StringCopy(savedescription, "", sizeof(savedescription));
+        players[consoleplayer].message = "SAVE FAILED";
+        return;
     }
 
     // Now rename the temporary savegame file to the actual savegame
@@ -2381,6 +2389,4 @@ boolean G_CheckDemoStatus (void)
 
     return false;
 }
-
-
 

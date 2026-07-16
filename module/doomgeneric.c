@@ -29,8 +29,16 @@ void doomgeneric_Create(int argc, char **argv)
         DOOMGENERIC_RESX * DOOMGENERIC_RESY * sizeof(pixel_t)
     );
 
+    if (DG_ScreenBuffer != NULL)
+    {
+        memset(
+            DG_ScreenBuffer,
+            0,
+            DOOMGENERIC_RESX * DOOMGENERIC_RESY * sizeof(pixel_t)
+        );
+    }
+
 	DG_Init();
 
 	D_DoomMain ();
 }
-
