@@ -37,8 +37,8 @@ $(BUILD_DIR)/module_complete: | source-backup
 
 CFLAGS += \
     -DCMAP256 \
-    -DDOOMGENERIC_RESX=640 \
-    -DDOOMGENERIC_RESY=400 \
+    -DDOOMGENERIC_RESX=720 \
+    -DDOOMGENERIC_RESY=480 \
     -DNORMALUNIX \
     -D_DEFAULT_SOURCE \
     -I. \

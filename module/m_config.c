@@ -487,11 +487,11 @@ static default_t	doom_defaults_list[] =
     //!
     // @game doom heretic hexen
     //
-    // Screen size, range 3-11.
+    // Screen size, range 3-12.
     //
-    // A value of 11 gives a full-screen view with the status bar not
-    // displayed.  A value of 10 gives a full-screen view with the
-    // status bar displayed.
+    // A value of 12 gives a 360x240 full-LCD view.  Values 11 and 12
+    // hide the status bar.  A value of 10 gives a full-screen view with
+    // the status bar displayed.
     //
 
     CONFIG_VARIABLE_INT(screenblocks),

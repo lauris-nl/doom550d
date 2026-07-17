@@ -96,7 +96,7 @@ int			viewangletox[FINEANGLES/2];
 // The xtoviewangleangle[] table maps a screen pixel
 // to the lowest viewangle that maps back to x ranges
 // from clipangle to -clipangle.
-angle_t			xtoviewangle[SCREENWIDTH+1];
+angle_t			xtoviewangle[FULLLCDWIDTH+1];
 
 lighttable_t*		scalelight[LIGHTLEVELS][MAXLIGHTSCALE];
 lighttable_t*		scalelightfixed[MAXLIGHTSCALE];
@@ -676,7 +676,12 @@ void R_ExecuteSetViewSize (void)
 
     setsizeneeded = false;
 
-    if (setblocks == 11)
+    if (setblocks == 12)
+    {
+	scaledviewwidth = FULLLCDWIDTH;
+	viewheight = FULLLCDHEIGHT;
+    }
+    else if (setblocks == 11)
     {
 	scaledviewwidth = SCREENWIDTH;
 	viewheight = SCREENHEIGHT;
@@ -715,9 +720,18 @@ void R_ExecuteSetViewSize (void)
 	
     R_InitTextureMapping ();
     
-    // psprite scales
-    pspritescale = FRACUNIT*viewwidth/SCREENWIDTH;
-    pspriteiscale = FRACUNIT*SCREENWIDTH/viewwidth;
+    // Keep weapon sprites at their native internal pixel size in the
+    // full-LCD view. Low detail still duplicates each logical column.
+    if (setblocks == 12)
+    {
+	pspritescale = FRACUNIT >> detailshift;
+	pspriteiscale = FRACUNIT << detailshift;
+    }
+    else
+    {
+	pspritescale = FRACUNIT*viewwidth/SCREENWIDTH;
+	pspriteiscale = FRACUNIT*SCREENWIDTH/viewwidth;
+    }
     
     // thing clipping
     for (i=0 ; i<viewwidth ; i++)

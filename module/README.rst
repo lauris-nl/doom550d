@@ -47,6 +47,16 @@ Controls
 ISO, depth-of-field and shutter controls are deliberately not used because
 Canon can process them below the module input layer.
 
+Display
+-------
+
+In ``Options > Screen Size``, move one step right past Doom's standard
+fullscreen setting to select the extra unofficial fullscreen. It renders
+gameplay at 360x240 and presents each game pixel as an exact 2x2 block on the
+720x480 display, without interpolation. The setting can be changed during
+gameplay. The status bar is hidden; menus, the automap and other non-gameplay
+screens retain Doom's classic 320x200 layout.
+
 Audio
 -----
 

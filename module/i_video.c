@@ -96,6 +96,9 @@ void I_GetEvent(void);
 // The screen buffer; this is modified to draw things to the screen
 
 byte *I_VideoBuffer = NULL;
+byte *I_FullLcdBuffer = NULL;
+
+static boolean full_lcd_present = false;
 
 // If true, game is running as a screensaver
 
@@ -287,9 +290,17 @@ void I_InitGraphics (void)
     }
 
 
-    /* Allocate screen to draw to */
+	/* Allocate screen to draw to */
 	I_VideoBuffer = (byte*)Z_Malloc (SCREENWIDTH * SCREENHEIGHT, PU_STATIC, NULL);  // For DOOM to draw on
 	memset(I_VideoBuffer, 0, SCREENWIDTH * SCREENHEIGHT);
+
+	I_FullLcdBuffer = (byte*)Z_Malloc (
+		FULLLCDWIDTH * FULLLCDHEIGHT,
+		PU_STATIC,
+		NULL
+	);
+	memset(I_FullLcdBuffer, 0, FULLLCDWIDTH * FULLLCDHEIGHT);
+	full_lcd_present = false;
 
 	screenvisible = true;
 
@@ -299,6 +310,14 @@ void I_InitGraphics (void)
 
 void I_ShutdownGraphics (void)
 {
+	full_lcd_present = false;
+
+	if (I_FullLcdBuffer != NULL)
+	{
+		Z_Free (I_FullLcdBuffer);
+		I_FullLcdBuffer = NULL;
+	}
+
 	if (I_VideoBuffer != NULL)
 	{
 		Z_Free (I_VideoBuffer);
@@ -320,6 +339,53 @@ void I_UpdateNoBlit (void)
 {
 }
 
+void I_SetFullLcdPresent(boolean enabled)
+{
+    full_lcd_present = enabled;
+}
+
+void I_BeginFullLcdOverlay(void)
+{
+    int y;
+    const int x_offset = (FULLLCDWIDTH - SCREENWIDTH) / 2;
+    const int y_offset = (FULLLCDHEIGHT - SCREENHEIGHT) / 2;
+
+    if (!I_VideoBuffer || !I_FullLcdBuffer)
+        return;
+
+    for (y = 0; y < SCREENHEIGHT; y++)
+    {
+        memcpy(
+            I_VideoBuffer + y * SCREENWIDTH,
+            I_FullLcdBuffer
+                + (y + y_offset) * FULLLCDWIDTH
+                + x_offset,
+            SCREENWIDTH
+        );
+    }
+}
+
+void I_EndFullLcdOverlay(void)
+{
+    int y;
+    const int x_offset = (FULLLCDWIDTH - SCREENWIDTH) / 2;
+    const int y_offset = (FULLLCDHEIGHT - SCREENHEIGHT) / 2;
+
+    if (!I_VideoBuffer || !I_FullLcdBuffer)
+        return;
+
+    for (y = 0; y < SCREENHEIGHT; y++)
+    {
+        memcpy(
+            I_FullLcdBuffer
+                + (y + y_offset) * FULLLCDWIDTH
+                + x_offset,
+            I_VideoBuffer + y * SCREENWIDTH,
+            SCREENWIDTH
+        );
+    }
+}
+
 //
 // I_FinishUpdate
 //
@@ -327,49 +393,66 @@ void I_UpdateNoBlit (void)
 void I_FinishUpdate (void)
 {
     int y;
-    int x_offset, y_offset, x_offset_end;
-    unsigned char *line_in, *line_out;
+    int source_width;
+    int source_height;
+    int x_offset;
+    int y_offset;
+    int bytes_per_pixel;
+    const int scale = 2;
+    unsigned char *source;
 
-    /* Offsets in case FB is bigger than DOOM */
-    /* 600 = s_Fb heigt, 200 screenheight */
-    /* 600 = s_Fb heigt, 200 screenheight */
-    /* 2048 =s_Fb width, 320 screenwidth */
-    y_offset     = (((s_Fb.yres - (SCREENHEIGHT * fb_scaling)) * s_Fb.bits_per_pixel/8)) / 2;
-    x_offset     = (((s_Fb.xres - (SCREENWIDTH  * fb_scaling)) * s_Fb.bits_per_pixel/8)) / 2; // XXX: siglent FB hack: /4 instead of /2, since it seems to handle the resolution in a funny way
-    //x_offset     = 0;
-    x_offset_end = ((s_Fb.xres - (SCREENWIDTH  * fb_scaling)) * s_Fb.bits_per_pixel/8) - x_offset;
+    if (!DG_ScreenBuffer)
+        return;
 
-    /* DRAW SCREEN */
-    line_in  = (unsigned char *) I_VideoBuffer;
-    line_out = (unsigned char *) DG_ScreenBuffer;
+    source = full_lcd_present ? I_FullLcdBuffer : I_VideoBuffer;
+    source_width = full_lcd_present ? FULLLCDWIDTH : SCREENWIDTH;
+    source_height = full_lcd_present ? FULLLCDHEIGHT : SCREENHEIGHT;
 
-    y = SCREENHEIGHT;
+    if (!source)
+        return;
 
-    while (y--)
+    bytes_per_pixel = s_Fb.bits_per_pixel / 8;
+    x_offset = (s_Fb.xres - source_width * scale) / 2;
+    y_offset = (s_Fb.yres - source_height * scale) / 2;
+
+    memset(
+        DG_ScreenBuffer,
+        0,
+        s_Fb.xres * s_Fb.yres * bytes_per_pixel
+    );
+
+    for (y = 0; y < source_height; y++)
     {
-        int i;
-        for (i = 0; i < fb_scaling; i++) {
-            line_out += x_offset;
-#ifdef CMAP256
-            if (fb_scaling == 1) {
-                memcpy(line_out, line_in, SCREENWIDTH); /* fb_width is bigger than Doom SCREENWIDTH... */
-            } else {
-                int j;
+        int duplicate_y;
 
-                for (j = 0; j < SCREENWIDTH; j++) {
-                    int k;
-                    for (k = 0; k < fb_scaling; k++) {
-                        line_out[j * fb_scaling + k] = line_in[j];
-                    }
+        for (duplicate_y = 0; duplicate_y < scale; duplicate_y++)
+        {
+            unsigned char *line_in = source + y * source_width;
+            unsigned char *line_out =
+                (unsigned char *)DG_ScreenBuffer
+                + ((y_offset + y * scale + duplicate_y) * s_Fb.xres
+                   + x_offset) * bytes_per_pixel;
+
+#ifdef CMAP256
+            int x;
+
+            for (x = 0; x < source_width; x++)
+            {
+                int duplicate_x;
+
+                for (duplicate_x = 0; duplicate_x < scale; duplicate_x++)
+                {
+                    line_out[x * scale + duplicate_x] = line_in[x];
                 }
             }
 #else
-            //cmap_to_rgb565((void*)line_out, (void*)line_in, SCREENWIDTH);
-            cmap_to_fb((void*)line_out, (void*)line_in, SCREENWIDTH);
+            int saved_scaling = fb_scaling;
+
+            fb_scaling = scale;
+            cmap_to_fb((void *)line_out, (void *)line_in, source_width);
+            fb_scaling = saved_scaling;
 #endif
-            line_out += (SCREENWIDTH * fb_scaling * (s_Fb.bits_per_pixel/8)) + x_offset_end;
         }
-        line_in += SCREENWIDTH;
     }
 
 	DG_DrawFrame();

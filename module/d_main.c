@@ -188,6 +188,7 @@ void D_Display (void)
     boolean			done;
     boolean			wipe;
     boolean			redrawsbar;
+    boolean                     full_lcd_frame;
 
     if (reset_display_state)
     {
@@ -222,6 +223,13 @@ void D_Display (void)
     else
     	wipe = false;
 
+    full_lcd_frame = gamestate == GS_LEVEL
+                  && gametic
+                  && screenblocks == 12
+                  && !automapactive;
+
+    I_SetFullLcdPresent(full_lcd_frame && !wipe && !inhelpscreens);
+
     if (gamestate == GS_LEVEL && gametic)
     	HU_Erase();
     
@@ -237,8 +245,8 @@ void D_Display (void)
 			redrawsbar = true;
 		if (inhelpscreensstate && !inhelpscreens)
 			redrawsbar = true;              // just put away the help screen
-		ST_Drawer (viewheight == 200, redrawsbar );
-		fullscreen = viewheight == 200;
+		ST_Drawer (screenblocks >= 11, redrawsbar );
+		fullscreen = screenblocks >= 11;
 		break;
 
       case GS_INTERMISSION:
@@ -261,6 +269,9 @@ void D_Display (void)
     if (gamestate == GS_LEVEL && !automapactive && gametic)
     	R_RenderPlayerView (&players[displayplayer]);
 
+    if (full_lcd_frame)
+        I_BeginFullLcdOverlay();
+
     if (gamestate == GS_LEVEL && gametic)
     	HU_Drawer ();
     
@@ -276,7 +287,8 @@ void D_Display (void)
     }
 
     // see if the border needs to be updated to the screen
-    if (gamestate == GS_LEVEL && !automapactive && scaledviewwidth != 320)
+    if (gamestate == GS_LEVEL && !automapactive
+     && scaledviewwidth < SCREENWIDTH)
     {
 		if (menuactive || menuactivestate || !viewactivestate)
 			borderdrawcount = 3;
@@ -302,17 +314,31 @@ void D_Display (void)
     // draw pause pic
     if (paused)
     {
+	int pause_x;
+
 		if (automapactive)
 			y = 4;
 		else
 			y = viewwindowy+4;
-		V_DrawPatchDirect(viewwindowx + (scaledviewwidth - 68) / 2, y,
+
+		if (screenblocks == 12)
+			pause_x = (SCREENWIDTH - 68) / 2;
+		else
+			pause_x = viewwindowx + (scaledviewwidth - 68) / 2;
+
+		V_DrawPatchDirect(pause_x, y,
 							  W_CacheLumpName (DEH_String("M_PAUSE"), PU_CACHE));
     }
 
 
     // menus go directly to the screen
     M_Drawer ();          // menu is drawn even on top of everything
+
+    if (full_lcd_frame)
+        I_EndFullLcdOverlay();
+
+    I_SetFullLcdPresent(full_lcd_frame && !wipe && !inhelpscreens);
+
     NetUpdate ();         // send out any new accumulation
 
 

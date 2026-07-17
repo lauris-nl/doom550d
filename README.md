@@ -5,7 +5,7 @@ Doom running as a Magic Lantern module on the Canon EOS 550D / Rebel T2i / Kiss 
 This repository contains the module source and release documentation. It does
 not contain Doom, Freedoom, or any other WAD data.
 
-> Status: experimental. Release `v0.3.1` is built for the Canon EOS
+> Status: experimental. Release `v0.3.2` is built for the Canon EOS
 > 550D and is the best playable build tested so far. It is not intended for
 > other cameras.
 
@@ -37,7 +37,9 @@ not contain Doom, Freedoom, or any other WAD data.
 - low-CPU MUS music with 24 voices, instrument families, envelopes and percussion;
 - music mixed with Doom's 8-bit effects into 48 kHz mono camera audio;
 - cleanup of input, display, palette, and audio state when Doom exits;
-- Canon 550D press/release controls, including held run and strafe modifiers.
+- Canon 550D press/release controls, including held run and strafe modifiers;
+- an **extra unofficial fullscreen** Screen Size setting that renders gameplay
+  at 360x240 and presents each game pixel as an exact 2x2 block at 720x480.
 
 ## Supported release target
 
@@ -154,6 +156,17 @@ Download links for freely distributable or commercially available data:
 ISO, the depth-of-field button and the shutter buttons are deliberately not
 used as Doom actions. Canon handles them below the module input layer and can
 otherwise show EOS overlays, autofocus, or steal the game controls.
+
+## Display
+
+In **Options > Screen Size**, move one step right past Doom's standard
+fullscreen setting to select **extra unofficial fullscreen**. It renders
+gameplay at 360x240 and presents each game pixel as an exact 2x2 block on the
+camera's 720x480 display, without interpolation. The setting can be changed
+during gameplay.
+
+The status bar is hidden in this setting. Menus, the automap, intermission and
+finale screens retain Doom's classic 320x200 layout.
 
 ## Saves and settings
 

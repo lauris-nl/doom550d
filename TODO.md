@@ -29,6 +29,11 @@
 - Continue long-duration save/load, quit, repeated-start, palette and control
   regression testing.
 
+## Completed in v0.3.2
+
+- Add the extra unofficial fullscreen Screen Size setting with a 360x240
+  gameplay view and exact 2x2 output at 720x480.
+
 ## Completed in v0.3.1
 
 - Add a persistent debug logging switch to the Magic Lantern Games menu.

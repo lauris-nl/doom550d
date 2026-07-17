@@ -38,10 +38,6 @@
 #include "doomstat.h"
 
 
-// ?
-#define MAXWIDTH			1120
-#define MAXHEIGHT			832
-
 // status bar height at bottom of screen
 #define SBARHEIGHT		32
 
@@ -61,8 +57,16 @@ int		scaledviewwidth;
 int		viewheight;
 int		viewwindowx;
 int		viewwindowy; 
-byte*		ylookup[MAXHEIGHT]; 
-int		columnofs[MAXWIDTH]; 
+byte*		ylookup[FULLLCDHEIGHT];
+int		columnofs[FULLLCDWIDTH];
+
+// The 3D renderer can target either Doom's classic 320x200 canvas or
+// the isolated full-LCD gameplay canvas. UI code continues to use the
+// classic video buffer independently of these renderer-only values.
+static byte*	render_target;
+static int	render_pitch;
+static int	render_width;
+static int	render_height;
 
 // Color tables for different players,
 //  translate a limited part to another
@@ -114,9 +118,9 @@ void R_DrawColumn (void)
 	return; 
 				 
 #ifdef RANGECHECK 
-    if ((unsigned)dc_x >= SCREENWIDTH
+    if ((unsigned)dc_x >= (unsigned)render_width
 	|| dc_yl < 0
-	|| dc_yh >= SCREENHEIGHT) 
+	|| dc_yh >= render_height)
 	I_Error ("R_DrawColumn: %d to %d at %d", dc_yl, dc_yh, dc_x); 
 #endif 
 
@@ -139,7 +143,7 @@ void R_DrawColumn (void)
 	//  using a lighting/special effects LUT.
 	*dest = dc_colormap[dc_source[(frac>>FRACBITS)&127]];
 	
-	dest += SCREENWIDTH; 
+	dest += render_pitch;
 	frac += fracstep;
 	
     } while (count--); 
@@ -179,26 +183,26 @@ void R_DrawColumn (void)
     while (count >= 8) 
     { 
 	dest[0] = colormap[source[frac>>25]]; 
-	dest[SCREENWIDTH] = colormap[source[(frac+fracstep)>>25]]; 
-	dest[SCREENWIDTH*2] = colormap[source[(frac+fracstep2)>>25]]; 
-	dest[SCREENWIDTH*3] = colormap[source[(frac+fracstep3)>>25]];
+	dest[render_pitch] = colormap[source[(frac+fracstep)>>25]];
+	dest[render_pitch*2] = colormap[source[(frac+fracstep2)>>25]];
+	dest[render_pitch*3] = colormap[source[(frac+fracstep3)>>25]];
 	
 	frac += fracstep4; 
 
-	dest[SCREENWIDTH*4] = colormap[source[frac>>25]]; 
-	dest[SCREENWIDTH*5] = colormap[source[(frac+fracstep)>>25]]; 
-	dest[SCREENWIDTH*6] = colormap[source[(frac+fracstep2)>>25]]; 
-	dest[SCREENWIDTH*7] = colormap[source[(frac+fracstep3)>>25]]; 
+	dest[render_pitch*4] = colormap[source[frac>>25]];
+	dest[render_pitch*5] = colormap[source[(frac+fracstep)>>25]];
+	dest[render_pitch*6] = colormap[source[(frac+fracstep2)>>25]];
+	dest[render_pitch*7] = colormap[source[(frac+fracstep3)>>25]];
 
 	frac += fracstep4; 
-	dest += SCREENWIDTH*8; 
+	dest += render_pitch*8;
 	count -= 8;
     } 
 	
     while (count > 0)
     { 
 	*dest = colormap[source[frac>>25]]; 
-	dest += SCREENWIDTH; 
+	dest += render_pitch;
 	frac += fracstep; 
 	count--;
     } 
@@ -221,10 +225,12 @@ void R_DrawColumnLow (void)
     if (count < 0) 
 	return; 
 				 
+    x = dc_x << 1;
+
 #ifdef RANGECHECK 
-    if ((unsigned)dc_x >= SCREENWIDTH
+    if ((unsigned)(x + 1) >= (unsigned)render_width
 	|| dc_yl < 0
-	|| dc_yh >= SCREENHEIGHT)
+	|| dc_yh >= render_height)
     {
 	
 	I_Error ("R_DrawColumn: %d to %d at %d", dc_yl, dc_yh, dc_x);
@@ -232,8 +238,7 @@ void R_DrawColumnLow (void)
     //	dccount++; 
 #endif 
     // Blocky mode, need to multiply by 2.
-    x = dc_x << 1;
-    
+
     dest = ylookup[dc_yl] + columnofs[x];
     dest2 = ylookup[dc_yl] + columnofs[x+1];
     
@@ -244,8 +249,8 @@ void R_DrawColumnLow (void)
     {
 	// Hack. Does not work corretly.
 	*dest2 = *dest = dc_colormap[dc_source[(frac>>FRACBITS)&127]];
-	dest += SCREENWIDTH;
-	dest2 += SCREENWIDTH;
+	dest += render_pitch;
+	dest2 += render_pitch;
 	frac += fracstep; 
 
     } while (count--);
@@ -256,19 +261,17 @@ void R_DrawColumnLow (void)
 // Spectre/Invisibility.
 //
 #define FUZZTABLE		50 
-#define FUZZOFF	(SCREENWIDTH)
-
-
-int	fuzzoffset[FUZZTABLE] =
+static const signed char fuzzdirection[FUZZTABLE] =
 {
-    FUZZOFF,-FUZZOFF,FUZZOFF,-FUZZOFF,FUZZOFF,FUZZOFF,-FUZZOFF,
-    FUZZOFF,FUZZOFF,-FUZZOFF,FUZZOFF,FUZZOFF,FUZZOFF,-FUZZOFF,
-    FUZZOFF,FUZZOFF,FUZZOFF,-FUZZOFF,-FUZZOFF,-FUZZOFF,-FUZZOFF,
-    FUZZOFF,-FUZZOFF,-FUZZOFF,FUZZOFF,FUZZOFF,FUZZOFF,FUZZOFF,-FUZZOFF,
-    FUZZOFF,-FUZZOFF,FUZZOFF,FUZZOFF,-FUZZOFF,-FUZZOFF,FUZZOFF,
-    FUZZOFF,-FUZZOFF,-FUZZOFF,-FUZZOFF,-FUZZOFF,FUZZOFF,FUZZOFF,
-    FUZZOFF,FUZZOFF,-FUZZOFF,FUZZOFF,FUZZOFF,-FUZZOFF,FUZZOFF 
+    1,-1,1,-1,1,1,-1,
+    1,1,-1,1,1,1,-1,
+    1,1,1,-1,-1,-1,-1,
+    1,-1,-1,1,1,1,1,-1,
+    1,-1,1,1,-1,-1,1,
+    1,-1,-1,-1,-1,1,1,
+    1,1,-1,1,1,-1,1
 }; 
+static int fuzzoffset[FUZZTABLE];
 
 int	fuzzpos = 0; 
 
@@ -303,8 +306,8 @@ void R_DrawFuzzColumn (void)
 	return; 
 
 #ifdef RANGECHECK 
-    if ((unsigned)dc_x >= SCREENWIDTH
-	|| dc_yl < 0 || dc_yh >= SCREENHEIGHT)
+    if ((unsigned)dc_x >= (unsigned)render_width
+	|| dc_yl < 0 || dc_yh >= render_height)
     {
 	I_Error ("R_DrawFuzzColumn: %d to %d at %d",
 		 dc_yl, dc_yh, dc_x);
@@ -326,13 +329,13 @@ void R_DrawFuzzColumn (void)
 	//  a pixel that is either one column
 	//  left or right of the current one.
 	// Add index from colormap to index.
-	*dest = colormaps[6*256+dest[fuzzoffset[fuzzpos]]]; 
+	*dest = colormaps[6*256+dest[fuzzoffset[fuzzpos]]];
 
 	// Clamp table lookup index.
 	if (++fuzzpos == FUZZTABLE) 
 	    fuzzpos = 0;
 	
-	dest += SCREENWIDTH;
+	dest += render_pitch;
 
 	frac += fracstep; 
     } while (count--); 
@@ -368,8 +371,8 @@ void R_DrawFuzzColumnLow (void)
     x = dc_x << 1;
     
 #ifdef RANGECHECK 
-    if ((unsigned)x >= SCREENWIDTH
-	|| dc_yl < 0 || dc_yh >= SCREENHEIGHT)
+    if ((unsigned)(x + 1) >= (unsigned)render_width
+	|| dc_yl < 0 || dc_yh >= render_height)
     {
 	I_Error ("R_DrawFuzzColumn: %d to %d at %d",
 		 dc_yl, dc_yh, dc_x);
@@ -392,15 +395,15 @@ void R_DrawFuzzColumnLow (void)
 	//  a pixel that is either one column
 	//  left or right of the current one.
 	// Add index from colormap to index.
-	*dest = colormaps[6*256+dest[fuzzoffset[fuzzpos]]]; 
-	*dest2 = colormaps[6*256+dest2[fuzzoffset[fuzzpos]]]; 
+	*dest = colormaps[6*256+dest[fuzzoffset[fuzzpos]]];
+	*dest2 = colormaps[6*256+dest2[fuzzoffset[fuzzpos]]];
 
 	// Clamp table lookup index.
 	if (++fuzzpos == FUZZTABLE) 
 	    fuzzpos = 0;
 	
-	dest += SCREENWIDTH;
-	dest2 += SCREENWIDTH;
+	dest += render_pitch;
+	dest2 += render_pitch;
 
 	frac += fracstep; 
     } while (count--); 
@@ -434,9 +437,9 @@ void R_DrawTranslatedColumn (void)
 	return; 
 				 
 #ifdef RANGECHECK 
-    if ((unsigned)dc_x >= SCREENWIDTH
+    if ((unsigned)dc_x >= (unsigned)render_width
 	|| dc_yl < 0
-	|| dc_yh >= SCREENHEIGHT)
+	|| dc_yh >= render_height)
     {
 	I_Error ( "R_DrawColumn: %d to %d at %d",
 		  dc_yl, dc_yh, dc_x);
@@ -460,7 +463,7 @@ void R_DrawTranslatedColumn (void)
 	// Thus the "green" ramp of the player 0 sprite
 	//  is mapped to gray, red, black/indigo. 
 	*dest = dc_colormap[dc_translation[dc_source[frac>>FRACBITS]]];
-	dest += SCREENWIDTH;
+	dest += render_pitch;
 	
 	frac += fracstep; 
     } while (count--); 
@@ -483,9 +486,9 @@ void R_DrawTranslatedColumnLow (void)
     x = dc_x << 1;
 				 
 #ifdef RANGECHECK 
-    if ((unsigned)x >= SCREENWIDTH
+    if ((unsigned)(x + 1) >= (unsigned)render_width
 	|| dc_yl < 0
-	|| dc_yh >= SCREENHEIGHT)
+	|| dc_yh >= render_height)
     {
 	I_Error ( "R_DrawColumn: %d to %d at %d",
 		  dc_yl, dc_yh, x);
@@ -511,8 +514,8 @@ void R_DrawTranslatedColumnLow (void)
 	//  is mapped to gray, red, black/indigo. 
 	*dest = dc_colormap[dc_translation[dc_source[frac>>FRACBITS]]];
 	*dest2 = dc_colormap[dc_translation[dc_source[frac>>FRACBITS]]];
-	dest += SCREENWIDTH;
-	dest2 += SCREENWIDTH;
+	dest += render_pitch;
+	dest2 += render_pitch;
 	
 	frac += fracstep; 
     } while (count--); 
@@ -599,8 +602,8 @@ void R_DrawSpan (void)
 #ifdef RANGECHECK
     if (ds_x2 < ds_x1
 	|| ds_x1<0
-	|| ds_x2>=SCREENWIDTH
-	|| (unsigned)ds_y>SCREENHEIGHT)
+	|| ds_x2 >= render_width
+	|| (unsigned)ds_y >= (unsigned)render_height)
     {
 	I_Error( "R_DrawSpan: %d to %d at %d",
 		 ds_x1,ds_x2,ds_y);
@@ -728,8 +731,8 @@ void R_DrawSpanLow (void)
 #ifdef RANGECHECK
     if (ds_x2 < ds_x1
 	|| ds_x1<0
-	|| ds_x2>=SCREENWIDTH
-	|| (unsigned)ds_y>SCREENHEIGHT)
+	|| ((ds_x2 << 1) + 1) >= render_width
+	|| (unsigned)ds_y >= (unsigned)render_height)
     {
 	I_Error( "R_DrawSpan: %d to %d at %d",
 		 ds_x1,ds_x2,ds_y);
@@ -781,24 +784,49 @@ R_InitBuffer
 { 
     int		i; 
 
+    if (width == FULLLCDWIDTH && height == FULLLCDHEIGHT)
+    {
+	render_target = I_FullLcdBuffer;
+	render_pitch = FULLLCDWIDTH;
+	render_width = FULLLCDWIDTH;
+	render_height = FULLLCDHEIGHT;
+    }
+    else
+    {
+	render_target = I_VideoBuffer;
+	render_pitch = SCREENWIDTH;
+	render_width = SCREENWIDTH;
+	render_height = SCREENHEIGHT;
+    }
+
+    if (render_target == NULL)
+	I_Error("R_InitBuffer: render target is not initialized");
+
+    if (width > render_width || height > render_height)
+	I_Error("R_InitBuffer: view %dx%d exceeds target %dx%d",
+		width, height, render_width, render_height);
+
+    for (i=0 ; i<FUZZTABLE ; i++)
+	fuzzoffset[i] = fuzzdirection[i] * render_pitch;
+
     // Handle resize,
     //  e.g. smaller view windows
     //  with border and/or status bar.
-    viewwindowx = (SCREENWIDTH-width) >> 1; 
+    viewwindowx = (render_width-width) >> 1;
 
     // Column offset. For windows.
     for (i=0 ; i<width ; i++) 
 	columnofs[i] = viewwindowx + i;
 
     // Samw with base row offset.
-    if (width == SCREENWIDTH) 
+    if (width == render_width)
 	viewwindowy = 0; 
     else 
-	viewwindowy = (SCREENHEIGHT-SBARHEIGHT-height) >> 1; 
+	viewwindowy = (render_height-SBARHEIGHT-height) >> 1;
 
     // Preclaculate all row offsets.
     for (i=0 ; i<height ; i++) 
-	ylookup[i] = I_VideoBuffer + (i+viewwindowy)*SCREENWIDTH; 
+	ylookup[i] = render_target + (i+viewwindowy)*render_pitch;
 } 
  
  
@@ -829,7 +857,7 @@ void R_FillBackScreen (void)
     // If we are running full screen, there is no need to do any of this,
     // and the background buffer can be freed if it was previously in use.
 
-    if (scaledviewwidth == SCREENWIDTH)
+    if (scaledviewwidth >= SCREENWIDTH)
     {
         if (background_buffer != NULL)
         {
@@ -946,7 +974,7 @@ void R_DrawViewBorder (void)
     int		ofs;
     int		i; 
  
-    if (scaledviewwidth == SCREENWIDTH) 
+    if (scaledviewwidth >= SCREENWIDTH)
 	return; 
   
     top = ((SCREENHEIGHT-SBARHEIGHT)-viewheight)/2; 

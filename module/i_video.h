@@ -27,6 +27,11 @@
 #define SCREENWIDTH  320
 #define SCREENHEIGHT 200
 
+// Full LCD gameplay buffer.  Classic Doom screens remain 320x200.
+
+#define FULLLCDWIDTH  360
+#define FULLLCDHEIGHT 240
+
 // Screen width used for "squash" scale functions
 
 #define SCREENWIDTH_4_3 256
@@ -107,6 +112,13 @@ int I_GetPaletteIndex(int r, int g, int b);
 void I_UpdateNoBlit (void);
 void I_FinishUpdate (void);
 
+// Select the buffer presented by I_FinishUpdate.  The overlay helpers keep
+// classic 320x200 drawing centred over the full LCD gameplay buffer.
+
+void I_SetFullLcdPresent(boolean enabled);
+void I_BeginFullLcdOverlay(void);
+void I_EndFullLcdOverlay(void);
+
 void I_ReadScreen (byte* scr);
 
 void I_BeginRead (void);
@@ -155,6 +167,7 @@ extern int vanilla_keyboard_mapping;
 extern boolean screensaver_mode;
 extern int usegamma;
 extern byte *I_VideoBuffer;
+extern byte *I_FullLcdBuffer;
 
 extern int screen_width;
 extern int screen_height;

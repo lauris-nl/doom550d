@@ -24,8 +24,8 @@
 #include "m_config.h"
 #include "p_saveg.h"
 
-#define DOOM_W 640
-#define DOOM_H 400
+#define DOOM_W 720
+#define DOOM_H 480
 #define DOOM_X ((720 - DOOM_W) / 2)
 #define DOOM_Y ((480 - DOOM_H) / 2)
 
