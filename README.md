@@ -9,6 +9,14 @@ not contain Doom, Freedoom, or any other WAD data.
 > 550D and is the best playable build tested so far. It is not intended for
 > other cameras.
 
+## Watch Doom550D in action
+
+[![Doom550D demonstration video](https://img.youtube.com/vi/G8sIcxkxpmQ/maxresdefault.jpg)](https://www.youtube.com/watch?v=G8sIcxkxpmQ)
+
+[▶ Watch Kick play DOOM on a Canon EOS 550D](https://www.youtube.com/watch?v=G8sIcxkxpmQ)
+
+[⬇ Download the latest Doom550D release](https://github.com/lauris-nl/doom550d/releases/latest)
+
 ## Screenshots
 
 ![Doom title screen](screenshots/doom_title.jpg)
