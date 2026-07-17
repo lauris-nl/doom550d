@@ -9,6 +9,10 @@
 #define SYNTH_VOICES 24
 #define SYNTH_CHANNELS 16
 #define ENV_MAX 32767
+#define WAVE_TABLE_SIZE 256
+#define WAVE_TABLE_LEVELS 6
+#define WAVE_TABLE_AMPLITUDE 1024
+#define MODULATION_LFO_INTERVAL 64
 
 enum { WAVE_SQUARE, WAVE_PULSE, WAVE_TRIANGLE, WAVE_SAW, WAVE_NOISE };
 enum { ENV_ATTACK, ENV_DECAY, ENV_SUSTAIN, ENV_RELEASE };
@@ -16,11 +20,14 @@ enum { ENV_ATTACK, ENV_DECAY, ENV_SUSTAIN, ENV_RELEASE };
 typedef struct
 {
     uint8_t waveform;
+    uint8_t accent_waveform;
+    uint8_t vibrato_depth;
     uint8_t attack_ms;
     uint16_t decay_ms;
     uint8_t sustain;
     uint16_t release_ms;
     uint8_t gain;
+    uint16_t accent_ms;
 }
 synth_preset_t;
 
@@ -50,32 +57,58 @@ typedef struct
     int release_ms;
     int level;
     int gain;
+    int table_level;
+    int accent_waveform;
+    int accent;
+    int accent_step;
+    int vibrato_depth;
+    int noise_mix;
     uint32_t phase;
     uint32_t step;
+    uint32_t current_step;
+    uint32_t pitch_target;
+    uint32_t pitch_decay;
     uint32_t noise;
     unsigned int age;
 }
 synth_voice_t;
 
-/* One cheap character per General MIDI family (program / 8). */
+/* One enhanced retro character per General MIDI family (program / 8). */
 static const synth_preset_t presets[16] =
 {
-    { WAVE_TRIANGLE,  3, 260, 176, 180, 236 }, /* piano */
-    { WAVE_SQUARE,    2, 180, 152, 130, 210 }, /* chromatic percussion */
-    { WAVE_PULSE,     5, 220, 180, 180, 210 }, /* organ */
-    { WAVE_TRIANGLE,  8, 300, 188, 260, 230 }, /* guitar */
-    { WAVE_SQUARE,    3, 180, 192, 160, 224 }, /* bass */
-    { WAVE_SAW,      28, 360, 208, 420, 170 }, /* strings */
-    { WAVE_SAW,      16, 280, 192, 300, 172 }, /* ensemble */
-    { WAVE_SQUARE,    4, 220, 176, 190, 195 }, /* brass */
-    { WAVE_PULSE,     5, 240, 176, 220, 200 }, /* reed */
-    { WAVE_TRIANGLE, 10, 280, 184, 300, 220 }, /* pipe */
-    { WAVE_SAW,       2, 180, 192, 180, 175 }, /* synth lead */
-    { WAVE_PULSE,    22, 420, 200, 460, 190 }, /* synth pad */
-    { WAVE_SQUARE,    5, 260, 168, 260, 185 }, /* synth effects */
-    { WAVE_TRIANGLE,  3, 200, 184, 180, 215 }, /* ethnic */
-    { WAVE_PULSE,     2, 160, 160, 140, 205 }, /* percussive */
-    { WAVE_SAW,      10, 300, 176, 300, 180 }  /* sound effects */
+    /* main, accent, vibrato, ADSR, gain, accent length */
+    { WAVE_TRIANGLE, WAVE_SAW,    0,
+        3, 260, 176, 180, 236,  70 }, /* electric piano */
+    { WAVE_SQUARE,   WAVE_SAW,    0,
+        2, 180, 152, 130, 210,  45 }, /* chromatic percussion */
+    { WAVE_PULSE,    WAVE_SQUARE, 5,
+        5, 220, 180, 180, 210,  50 }, /* transistor organ */
+    { WAVE_TRIANGLE, WAVE_SAW,    0,
+        8, 300, 188, 260, 230,  90 }, /* plucked synth */
+    { WAVE_SQUARE,   WAVE_SAW,    0,
+        3, 180, 192, 160, 224,  55 }, /* bass */
+    { WAVE_SAW,      WAVE_SQUARE, 3,
+       28, 360, 208, 420, 170, 130 }, /* strings */
+    { WAVE_SAW,      WAVE_PULSE,  4,
+       16, 280, 192, 300, 172, 100 }, /* ensemble */
+    { WAVE_SQUARE,   WAVE_SAW,    2,
+        4, 220, 176, 190, 195,  90 }, /* brass */
+    { WAVE_PULSE,    WAVE_SAW,    5,
+        5, 240, 176, 220, 200,  75 }, /* reed */
+    { WAVE_TRIANGLE, WAVE_PULSE,  6,
+       10, 280, 184, 300, 220,  65 }, /* pipe */
+    { WAVE_SAW,      WAVE_SQUARE, 5,
+        2, 180, 192, 180, 175,  60 }, /* synth lead */
+    { WAVE_PULSE,    WAVE_SAW,    4,
+       22, 420, 200, 460, 190, 140 }, /* synth pad */
+    { WAVE_SQUARE,   WAVE_SAW,    7,
+        5, 260, 168, 260, 185,  80 }, /* synth effects */
+    { WAVE_TRIANGLE, WAVE_PULSE,  3,
+        3, 200, 184, 180, 215,  65 }, /* ethnic */
+    { WAVE_PULSE,    WAVE_SAW,    0,
+        2, 160, 160, 140, 205,  45 }, /* percussive */
+    { WAVE_SAW,      WAVE_SQUARE, 6,
+       10, 300, 176, 300, 180, 100 }  /* sound effects */
 };
 
 /* Q0.32 phase increments for MIDI notes 0..11 at 24 kHz. */
@@ -87,10 +120,114 @@ static const uint32_t base_step[12] =
 
 static synth_channel_t channels[SYNTH_CHANNELS];
 static synth_voice_t voices[SYNTH_VOICES];
+static int16_t wave_tables[4][WAVE_TABLE_LEVELS][WAVE_TABLE_SIZE];
 static unsigned int voice_age;
 static int initialized;
-static int16_t last_sample;
-static int duplicate_pending;
+static int wave_tables_ready;
+static int16_t interpolation_sample;
+static int interpolation_phase;
+static int16_t ensemble_delay[256];
+static unsigned int ensemble_position;
+static unsigned int modulation_lfo_phase;
+static unsigned int modulation_lfo_countdown;
+
+/* One quarter of a sine wave, scaled to 32767. */
+static const int16_t quarter_sine[65] =
+{
+        0,   804,  1608,  2410,  3212,  4011,  4808,  5602,
+     6393,  7179,  7962,  8739,  9512, 10278, 11039, 11793,
+    12539, 13279, 14010, 14732, 15446, 16151, 16846, 17530,
+    18204, 18868, 19519, 20159, 20787, 21403, 22005, 22594,
+    23170, 23731, 24279, 24811, 25329, 25832, 26319, 26790,
+    27245, 27683, 28105, 28510, 28898, 29268, 29621, 29956,
+    30273, 30571, 30852, 31113, 31356, 31580, 31785, 31971,
+    32137, 32285, 32412, 32521, 32609, 32678, 32728, 32757,
+    32767
+};
+
+static int sine_sample(unsigned int phase)
+{
+    unsigned int position = phase & 255;
+    if (position <= 64) return quarter_sine[position];
+    if (position <= 128) return quarter_sine[128 - position];
+    if (position <= 192) return -quarter_sine[position - 128];
+    return -quarter_sine[256 - position];
+}
+
+static void normalize_table(int waveform, int level, const int32_t *source)
+{
+    int maximum = 1;
+    int absolute;
+    int i;
+
+    for (i = 0; i < WAVE_TABLE_SIZE; i++)
+    {
+        absolute = source[i] < 0 ? -source[i] : source[i];
+        if (absolute > maximum) maximum = absolute;
+    }
+    for (i = 0; i < WAVE_TABLE_SIZE; i++)
+        wave_tables[waveform][level][i] =
+            (int16_t)(source[i] * WAVE_TABLE_AMPLITUDE / maximum);
+}
+
+static void build_wave_tables(void)
+{
+    static const int harmonic_limit[WAVE_TABLE_LEVELS] =
+        { 32, 16, 8, 4, 2, 1 };
+    int32_t source[WAVE_TABLE_SIZE];
+    int harmonics;
+    int harmonic;
+    int level;
+    int position;
+    int sign;
+
+    if (wave_tables_ready) return;
+    for (level = 0; level < WAVE_TABLE_LEVELS; level++)
+    {
+        harmonics = harmonic_limit[level];
+
+        memset(source, 0, sizeof(source));
+        for (position = 0; position < WAVE_TABLE_SIZE; position++)
+            for (harmonic = 1; harmonic <= harmonics; harmonic++)
+                source[position] += sine_sample(position * harmonic)
+                                    / harmonic;
+        normalize_table(WAVE_SAW, level, source);
+
+        for (position = 0; position < WAVE_TABLE_SIZE; position++)
+            source[position] =
+                (int32_t)wave_tables[WAVE_SAW][level][position]
+                - wave_tables[WAVE_SAW][level][(position + 192) & 255];
+        normalize_table(WAVE_PULSE, level, source);
+
+        memset(source, 0, sizeof(source));
+        for (position = 0; position < WAVE_TABLE_SIZE; position++)
+            for (harmonic = 1; harmonic <= harmonics; harmonic += 2)
+                source[position] += sine_sample(position * harmonic)
+                                    / harmonic;
+        normalize_table(WAVE_SQUARE, level, source);
+
+        memset(source, 0, sizeof(source));
+        for (position = 0; position < WAVE_TABLE_SIZE; position++)
+            for (harmonic = 1; harmonic <= harmonics; harmonic += 2)
+            {
+                sign = (harmonic & 2) ? -1 : 1;
+                source[position] += sign * sine_sample(position * harmonic)
+                                    / (harmonic * harmonic);
+            }
+        normalize_table(WAVE_TRIANGLE, level, source);
+    }
+    wave_tables_ready = 1;
+}
+
+static int wave_table_level(uint32_t step)
+{
+    if (step <= (1U << 26)) return 0;
+    if (step <= (1U << 27)) return 1;
+    if (step <= (1U << 28)) return 2;
+    if (step <= (1U << 29)) return 3;
+    if (step <= (1U << 30)) return 4;
+    return 5;
+}
 
 static int clamp_127(int value)
 {
@@ -122,6 +259,38 @@ static uint32_t note_step(int note, int bend)
     adjustment = (int)(step >> 8) * bend / 2;
     if (adjustment < 0 && (uint32_t)(-adjustment) >= step) return 1;
     return step + adjustment;
+}
+
+static void set_voice_step(synth_voice_t *voice, uint32_t step)
+{
+    voice->step = step;
+    voice->current_step = step;
+    voice->table_level = wave_table_level(step);
+}
+
+static void update_modulation_lfo(void)
+{
+    unsigned int position = modulation_lfo_phase & 255;
+    int triangle = position < 128 ? (int)position * 2 - 127
+                                  : 383 - (int)position * 2;
+    int adjustment;
+    int i;
+
+    modulation_lfo_phase += 3; /* About 4.4 Hz at 24 kHz. */
+    for (i = 0; i < SYNTH_VOICES; i++)
+        if (voices[i].active)
+        {
+            voices[i].current_step = voices[i].step;
+            if (voices[i].vibrato_depth)
+            {
+                adjustment = (int)(voices[i].step >> 12)
+                    * triangle * voices[i].vibrato_depth >> 7;
+                if (adjustment < 0)
+                    voices[i].current_step -= (uint32_t)(-adjustment);
+                else
+                    voices[i].current_step += (uint32_t)adjustment;
+            }
+        }
 }
 
 static void update_level(synth_voice_t *voice)
@@ -160,9 +329,29 @@ static int percussion_waveform(int note)
 {
     if (note == 35 || note == 36 || (note >= 41 && note <= 47))
         return WAVE_TRIANGLE;
-    if (note == 37 || note == 39 || note == 54 || note == 56)
+    if (note == 37 || note == 38 || note == 39 || note == 40)
+        return WAVE_SQUARE;
+    if (note == 42 || note == 44 || note == 46 || note >= 49)
         return WAVE_PULSE;
     return WAVE_NOISE;
+}
+
+static int percussion_noise_mix(int note)
+{
+    if (note == 37 || note == 38 || note == 39 || note == 40) return 40;
+    if (note == 42 || note == 44 || note == 46) return 54;
+    if (note >= 49) return 48;
+    return 0;
+}
+
+static int percussion_release_ms(int note)
+{
+    if (note == 35 || note == 36) return 190;
+    if (note == 42 || note == 44) return 55;
+    if (note == 46) return 190;
+    if (note >= 49) return 280;
+    if (note >= 41 && note <= 47) return 150;
+    return 105;
 }
 
 void doom_softsynth_note_off(int channel, int note)
@@ -197,6 +386,10 @@ void doom_softsynth_note_on(int channel, int note, int velocity)
     voice->note = note;
     voice->velocity = velocity;
     voice->waveform = preset->waveform;
+    voice->accent_waveform = preset->accent_waveform;
+    voice->accent = preset->accent_ms ? ENV_MAX : 0;
+    voice->accent_step = envelope_step(ENV_MAX, preset->accent_ms);
+    voice->vibrato_depth = preset->vibrato_depth;
     voice->gain = preset->gain;
     voice->release_ms = preset->release_ms;
     voice->sustain = preset->sustain * ENV_MAX / 255;
@@ -210,14 +403,24 @@ void doom_softsynth_note_on(int channel, int note, int velocity)
     if (channel == 15)
     {
         voice->waveform = percussion_waveform(note);
+        voice->accent = 0;
+        voice->vibrato_depth = 0;
+        voice->noise_mix = percussion_noise_mix(note);
         voice->gain = 240;
-        voice->release_ms = note == 35 || note == 36 ? 180 : 70;
+        voice->release_ms = percussion_release_ms(note);
         voice->sustain = 0;
         voice->decay_step = envelope_step(ENV_MAX, voice->release_ms);
-        synth_note = note == 35 || note == 36 ? 35 : note;
+        synth_note = note == 35 || note == 36 ? 47 : note;
     }
     voice->synth_note = synth_note;
-    voice->step = note_step(synth_note, channels[channel].bend);
+    set_voice_step(voice, note_step(synth_note, channels[channel].bend));
+    if (channel == 15 && (note == 35 || note == 36))
+    {
+        voice->pitch_target = note_step(35, 0);
+        voice->pitch_decay = (voice->step - voice->pitch_target)
+                             / (SYNTH_RATE * 70 / 1000);
+        if (!voice->pitch_decay) voice->pitch_decay = 1;
+    }
     update_level(voice);
 }
 
@@ -233,8 +436,12 @@ void doom_softsynth_reset_song(void)
     if (!initialized) return;
     memset(voices, 0, sizeof(voices));
     voice_age = 0;
-    last_sample = 0;
-    duplicate_pending = 0;
+    interpolation_sample = 0;
+    interpolation_phase = 0;
+    memset(ensemble_delay, 0, sizeof(ensemble_delay));
+    ensemble_position = 0;
+    modulation_lfo_phase = 0;
+    modulation_lfo_countdown = 0;
     for (i = 0; i < SYNTH_CHANNELS; i++)
     {
         channels[i].program = 0;
@@ -246,9 +453,11 @@ void doom_softsynth_reset_song(void)
 int doom_softsynth_init(unsigned int sample_rate)
 {
     (void)sample_rate;
+    build_wave_tables();
     initialized = 1;
     doom_softsynth_reset_song();
-    printf("doom550d: light softsynth ready (24 voices, 24 kHz)\n");
+    printf("doom550d: enhanced softsynth ready "
+           "(24 voices, band-limited 24->48 kHz)\n");
     return 1;
 }
 
@@ -266,8 +475,9 @@ void doom_softsynth_pitch(int channel, int value)
     channels[channel].bend = clamp_127(value >> 1) - 64;
     for (i = 0; i < SYNTH_VOICES; i++)
         if (voices[i].active && voices[i].channel == channel)
-            voices[i].step = note_step(voices[i].synth_note,
-                                       channels[channel].bend);
+            set_voice_step(&voices[i],
+                           note_step(voices[i].synth_note,
+                                     channels[channel].bend));
 }
 
 void doom_softsynth_controller(int channel, int controller, int value)
@@ -311,7 +521,8 @@ void doom_softsynth_system_event(int channel, int controller)
                 if (voices[i].active && voices[i].channel == channel)
                 {
                     update_level(&voices[i]);
-                    voices[i].step = note_step(voices[i].synth_note, 0);
+                    set_voice_step(&voices[i],
+                                   note_step(voices[i].synth_note, 0));
                 }
             break;
         default:
@@ -322,6 +533,8 @@ void doom_softsynth_system_event(int channel, int controller)
 static int voice_sample(synth_voice_t *voice)
 {
     unsigned int position;
+    int accent_mix;
+    int noise_wave;
     int wave;
     int sample;
 
@@ -354,49 +567,95 @@ static int voice_sample(synth_voice_t *voice)
     }
 
     position = voice->phase >> 24;
-    switch (voice->waveform)
+    if (voice->channel == 15)
     {
-        case WAVE_PULSE:
-            wave = position < 64 ? 127 : -127;
-            break;
-        case WAVE_TRIANGLE:
-            wave = position < 128 ? (int)position * 2 - 127
-                                  : 383 - (int)position * 2;
-            break;
-        case WAVE_SAW:
-            wave = (int)position - 128;
-            break;
-        case WAVE_NOISE:
+        if (voice->pitch_target && voice->step > voice->pitch_target)
+        {
+            if (voice->step - voice->pitch_target <= voice->pitch_decay)
+                voice->step = voice->pitch_target;
+            else
+                voice->step -= voice->pitch_decay;
+            voice->current_step = voice->step;
+        }
+
+        if (voice->waveform == WAVE_NOISE)
+        {
             voice->noise ^= voice->noise << 13;
             voice->noise ^= voice->noise >> 17;
             voice->noise ^= voice->noise << 5;
-            wave = (int)((voice->noise >> 24) & 0xff) - 128;
-            break;
-        case WAVE_SQUARE:
-        default:
-            wave = position < 128 ? 127 : -127;
-            break;
+            wave = ((int)((voice->noise >> 24) & 0xff) - 128) * 8;
+        }
+        else
+        {
+            wave = wave_tables[voice->waveform][voice->table_level][position];
+            if (voice->noise_mix)
+            {
+                voice->noise ^= voice->noise << 13;
+                voice->noise ^= voice->noise >> 17;
+                voice->noise ^= voice->noise << 5;
+                noise_wave = ((int)((voice->noise >> 24) & 0xff) - 128) * 8;
+                wave += (noise_wave - wave) * voice->noise_mix >> 6;
+            }
+        }
     }
-    voice->phase += voice->step;
-    sample = (wave * voice->level) >> 3;
+    else
+    {
+        wave = wave_tables[voice->waveform][voice->table_level][position];
+        if (voice->accent > 0)
+        {
+            accent_mix = voice->accent >> 9;
+            wave += (wave_tables[voice->accent_waveform][voice->table_level]
+                                [position] - wave) * accent_mix >> 6;
+            voice->accent -= voice->accent_step;
+            if (voice->accent < 0) voice->accent = 0;
+        }
+    }
+
+    voice->phase += voice->current_step;
+    sample = (wave * voice->level) >> 6;
     return (sample * voice->env) >> 15;
+}
+
+static int16_t soft_saturate(int mixed)
+{
+    int negative = mixed < 0;
+    int magnitude = negative ? -mixed : mixed;
+
+    if (magnitude > 12000)
+        magnitude = 12000 + ((magnitude - 12000) >> 2);
+    if (magnitude > 16000) magnitude = 16000;
+    return (int16_t)(negative ? -magnitude : magnitude);
 }
 
 static int16_t synth_sample(void)
 {
     int mixed = 0;
+    int dry;
+    int delayed;
     int i;
+
+    if (!modulation_lfo_countdown)
+    {
+        update_modulation_lfo();
+        modulation_lfo_countdown = MODULATION_LFO_INTERVAL;
+    }
+    modulation_lfo_countdown--;
+
     for (i = 0; i < SYNTH_VOICES; i++)
         if (voices[i].active) mixed += voice_sample(&voices[i]);
 
-    /* Preserve headroom for the upper half of Doom's music slider. */
-    if (mixed > 16000) mixed = 16000;
-    if (mixed < -16000) mixed = -16000;
-    return (int16_t)mixed;
+    /* Soft knee followed by a subtle mono ensemble delay tap. */
+    dry = soft_saturate(mixed);
+    delayed = ensemble_delay[(ensemble_position + 129) & 255];
+    ensemble_delay[ensemble_position] = (int16_t)dry;
+    ensemble_position = (ensemble_position + 1) & 255;
+    return (int16_t)(dry + ((delayed - dry) >> 3));
 }
 
 void doom_softsynth_render_48k(int16_t *buffer, unsigned int samples)
 {
+    int16_t next_sample;
+
     if (!buffer) return;
     if (!initialized)
     {
@@ -404,25 +663,21 @@ void doom_softsynth_render_48k(int16_t *buffer, unsigned int samples)
         return;
     }
 
-    if (duplicate_pending && samples)
-    {
-        *buffer++ = last_sample;
-        samples--;
-        duplicate_pending = 0;
-    }
     while (samples)
     {
-        last_sample = synth_sample();
-        *buffer++ = last_sample;
-        samples--;
-        if (samples)
+        if (interpolation_phase)
         {
-            *buffer++ = last_sample;
-            samples--;
+            next_sample = synth_sample();
+            *buffer++ = (int16_t)(((int)interpolation_sample
+                                   + next_sample) / 2);
+            interpolation_sample = next_sample;
+            interpolation_phase = 0;
         }
         else
         {
-            duplicate_pending = 1;
+            *buffer++ = interpolation_sample;
+            interpolation_phase = 1;
         }
+        samples--;
     }
 }

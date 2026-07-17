@@ -20,6 +20,7 @@
 #include "d_player.h"
 #include "doomstat.h"
 #include "doom_audio_ml.h"
+#include "doom_debug.h"
 #include "m_config.h"
 #include "p_saveg.h"
 
@@ -33,8 +34,10 @@
 #define DOOM_SAVE_DIR "ML/DOOM/SAVES"
 #define DOOM_CONFIG_DIR "ML/DOOM/CONFIG"
 #define DOOM_MAX_WAD_FILES 32
+#define DOOM_MAX_LOG_FILES 32
 
 static CONFIG_INT("games.doom550d.wad", doom_wad_choice, -1);
+CONFIG_INT("games.doom550d.debug", doom_debug_enabled, 0);
 
 #define KEYQUEUE_SIZE 64
 
@@ -79,7 +82,12 @@ extern boolean menuactive;
 
 static void doom_log_write(const char *text, unsigned int length)
 {
-    FILE *file = FIO_OpenFile(DOOM_LOG_FILE, O_RDWR | O_SYNC);
+    FILE *file;
+
+    if (!doom_debug_enabled)
+        return;
+
+    file = FIO_OpenFile(DOOM_LOG_FILE, O_RDWR | O_SYNC);
 
     if (!file)
         file = FIO_CreateFile(DOOM_LOG_FILE);
@@ -124,7 +132,12 @@ static void doom_log_checkpoint(const char *where)
 
 static void doom_log_reset(void)
 {
-    FILE *file = FIO_CreateFile(DOOM_LOG_FILE);
+    FILE *file;
+
+    if (!doom_debug_enabled)
+        return;
+
+    file = FIO_CreateFile(DOOM_LOG_FILE);
 
     if (!file)
         return;
@@ -349,7 +362,7 @@ static void doom_raw_trace_add(const struct event *event)
 {
     unsigned int index;
 
-    if (!event)
+    if (!doom_debug_enabled || !event)
         return;
 
     index = doom_raw_trace_count;
@@ -367,8 +380,13 @@ static void doom_raw_trace_add(const struct event *event)
 
 static void doom_raw_trace_dump(void)
 {
-    FILE *file = FIO_CreateFile("ML/LOGS/DOOMRAW.LOG");
+    FILE *file;
     char line[160];
+
+    if (!doom_debug_enabled)
+        return;
+
+    file = FIO_CreateFile("ML/LOGS/DOOMRAW.LOG");
 
     if (!file)
         return;
@@ -518,6 +536,29 @@ static int ascii_lower(int character)
         character >= 'A' && character <= 'Z'
         ? character + ('a' - 'A')
         : character;
+}
+
+static int is_doom_log_name(const char *name)
+{
+    size_t length;
+    static const char prefix[] = "doom";
+
+    if (!name)
+        return 0;
+
+    length = strlen(name);
+    if (length < 8)
+        return 0;
+
+    for (unsigned int i = 0; i < sizeof(prefix) - 1; i++)
+        if (ascii_lower(name[i]) != prefix[i])
+            return 0;
+
+    return
+        name[length - 4] == '.' &&
+        ascii_lower(name[length - 3]) == 'l' &&
+        ascii_lower(name[length - 2]) == 'o' &&
+        ascii_lower(name[length - 1]) == 'g';
 }
 
 static int wad_name_compare(const char *left, const char *right)
@@ -994,6 +1035,78 @@ static MENU_SELECT_FUNC(doom_wad_select)
         doom_wad_choice -= doom_wad_file_count;
 }
 
+static MENU_SELECT_FUNC(doom_logs_clear)
+{
+    char paths[DOOM_MAX_LOG_FILES][FIO_MAX_PATH_LENGTH];
+    struct fio_file *file;
+    struct fio_dirent *dirent;
+    int found = 0;
+    int deleted = 0;
+    int failed = 0;
+
+    if (doom_task_active || doom_running)
+    {
+        NotifyBox(3000, "Stop Doom before clearing logs");
+        return;
+    }
+
+    file = alloc_fio_file();
+    if (!file)
+    {
+        NotifyBox(3000, "Cannot scan ML/LOGS");
+        return;
+    }
+
+    dirent = FIO_FindFirstEx("ML/LOGS/", file);
+    if (!IS_ERROR(dirent))
+    {
+        do
+        {
+            struct file_info info = convert_fio_file_info(file);
+            int length;
+
+            if (!info.name[0] || (info.mode & ATTR_DIRECTORY))
+                continue;
+            if (!is_doom_log_name(info.name))
+                continue;
+
+            length = snprintf(
+                paths[found],
+                sizeof(paths[found]),
+                "ML/LOGS/%s",
+                info.name
+            );
+            if (length < 0 || length >= (int)sizeof(paths[found]))
+                continue;
+
+            found++;
+        }
+        while (
+            found < DOOM_MAX_LOG_FILES &&
+            FIO_FindNextEx(dirent, file) == 0
+        );
+
+        FIO_FindClose(dirent);
+    }
+    free(file);
+
+    for (int i = 0; i < found; i++)
+    {
+        if (FIO_RemoveFile(paths[i]) == 0)
+            deleted++;
+        else
+            failed++;
+    }
+    doom_raw_trace_count = 0;
+
+    if (!found)
+        NotifyBox(3000, "No Doom logs found");
+    else if (failed)
+        NotifyBox(4000, "Doom logs: %d deleted, %d failed", deleted, failed);
+    else
+        NotifyBox(3000, "%d Doom log%s deleted", deleted, deleted == 1 ? "" : "s");
+}
+
 static struct menu_entry doom550d_menu[] =
 {
     {
@@ -1009,6 +1122,21 @@ static struct menu_entry doom550d_menu[] =
                 .update = doom_wad_update,
                 .help = "Choose an IWAD found in ML/DOOM.",
                 .help2 = "PWAD level and mod files are not shown.",
+            },
+            {
+                .name = "Debug logging",
+                .priv = &doom_debug_enabled,
+                .min = 0,
+                .max = 1,
+                .choices = (const char *[]) { "OFF", "ON" },
+                .help = "Write Doom diagnostics to ML/LOGS.",
+                .help2 = "Keep OFF for normal play; enable before reproducing a bug.",
+            },
+            {
+                .name = "Clear Doom logs",
+                .select = doom_logs_clear,
+                .help = "Delete only ML/LOGS/DOOM*.LOG files.",
+                .help2 = "Savegames, WADs and configuration are never removed.",
             },
             MENU_EOL,
         },
@@ -1242,4 +1370,5 @@ MODULE_CBRS_END()
 
 MODULE_CONFIGS_START()
     MODULE_CONFIG(doom_wad_choice)
+    MODULE_CONFIG(doom_debug_enabled)
 MODULE_CONFIGS_END()

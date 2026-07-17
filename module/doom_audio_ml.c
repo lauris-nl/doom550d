@@ -6,6 +6,7 @@
 
 #include "deh_str.h"
 #include "doom_audio_ml.h"
+#include "doom_debug.h"
 #include "doom_softsynth.h"
 #include "doomtype.h"
 #include "i_sound.h"
@@ -321,7 +322,11 @@ static void log_audio_timing(unsigned int peak, unsigned int misses)
 {
     FILE *file;
     char text[192];
-    int length = snprintf(text, sizeof(text),
+    int length;
+
+    if (!doom_debug_enabled) return;
+
+    length = snprintf(text, sizeof(text),
         "audio softsynth-24k peak_ms=%d deadline_misses=%d "
         "music_volume=%d pre_peak=%d post_peak=%d\n",
         (int)peak, (int)misses, music_volume,

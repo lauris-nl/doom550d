@@ -1,8 +1,17 @@
-# Doom 550D v0.3.0
+# Doom 550D v0.3.1
 
-This release was physically tested on a Canon EOS 550D with firmware 1.0.9.
-It is the best playable build tested so far, with fluid gameplay, working
-effects and stable low-CPU music.
+This release targets the Canon EOS 550D with firmware 1.0.9 and retains the
+playable game, input, save and audio behavior from v0.3.0.
+
+## Added debug option to ML's game menu
+
+- Enable or disable Doom debug logging from `Games > Doom > Debug logging`.
+- Keep logging disabled by default for normal play and enable it before
+  reproducing a problem.
+- Persist the selected logging state in Magic Lantern's module configuration.
+- Remove `ML/LOGS/DOOM*.LOG` safely with `Games > Doom > Clear Doom logs`.
+- Refuse log deletion while Doom is active.
+- Leave WADs, savegames and Doom configuration untouched when clearing logs.
 
 ## Highlights
 
@@ -34,8 +43,9 @@ bend. It is designed to provide an AdLib-like retro sound without the CPU cost
 that made the earlier cycle-level OPL2 experiments unstable on the 550D. It is
 not cycle-accurate OPL2 emulation.
 
-Audio timing is recorded in `ML/LOGS/DOOM550D.LOG`. The tested build reported
-no missed audio deadlines during successful gameplay sessions.
+When debug logging is enabled, audio timing is recorded in
+`ML/LOGS/DOOM550D.LOG`. The tested game build reported no missed audio
+deadlines during successful gameplay sessions.
 
 ## Installation and compatibility
 
@@ -60,11 +70,11 @@ No WAD files or other copyrighted game assets are included.
 - WAD switching requires a camera restart.
 - At most 32 IWADs are listed.
 - Multiplayer is not supported.
-- Logs retain only the most recent run.
+- When enabled, logs retain only the most recent run.
 
 ## Release binary
 
 ```text
 doom.mo
-SHA-256: 1030f91aac3a622b4bfb86f9fe9244e1c28a730da7585f58d2a0e0113c50fc29
+SHA-256: d7cc379bbd21968ba72bf9359bb03cc1f473904035547229cc217b1f920f56f7
 ```

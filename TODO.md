@@ -29,6 +29,13 @@
 - Continue long-duration save/load, quit, repeated-start, palette and control
   regression testing.
 
+## Completed in v0.3.1
+
+- Add a persistent debug logging switch to the Magic Lantern Games menu.
+- Default diagnostic file writes to off for normal play.
+- Add safe removal of `ML/LOGS/DOOM*.LOG` without touching WADs, saves or
+  configuration.
+
 ## Completed in v0.3.0
 
 - Add a richer 24-voice, 24 kHz low-CPU music synthesizer.

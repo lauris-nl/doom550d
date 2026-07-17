@@ -5,7 +5,7 @@ Doom running as a Magic Lantern module on the Canon EOS 550D / Rebel T2i / Kiss 
 This repository contains the module source and release documentation. It does
 not contain Doom, Freedoom, or any other WAD data.
 
-> Status: experimental. Release `v0.3.0` is physically tested on a Canon EOS
+> Status: experimental. Release `v0.3.1` is built for the Canon EOS
 > 550D and is the best playable build tested so far. It is not intended for
 > other cameras.
 
@@ -22,6 +22,7 @@ not contain Doom, Freedoom, or any other WAD data.
 ## Features
 
 - selectable Doom-family IWADs from the Magic Lantern Games menu;
+- persistent debug logging control and safe Doom-log cleanup from that menu;
 - up to 32 alphabetically sorted IWAD files in `ML/DOOM/`;
 - separate save slots for every exact WAD filename;
 - persistent Doom menu, sound, and music settings;
@@ -81,7 +82,9 @@ Do not install this binary on another camera model or firmware version.
 5. Copy one or more legally obtained Doom-compatible IWAD files into
    `ML/DOOM/`.
 6. In the Magic Lantern Games menu, select **Doom > WAD**.
-7. Restart the camera after changing the selected WAD, then start Doom.
+7. Keep **Doom > Debug logging** set to **OFF** for normal play. Enable it
+   before reproducing a problem.
+8. Restart the camera after changing the selected WAD, then start Doom.
 
 The module creates and manages `ML/DOOM/SAVES` and `ML/DOOM/CONFIG`. If no
 usable IWAD is found, the camera displays a clear message instead of starting
@@ -164,20 +167,34 @@ ML/DOOM/CONFIG/
 
 The selected WAD is stored in the Magic Lantern module configuration.
 
+## Debug logging
+
+The Magic Lantern **Games > Doom** submenu contains two diagnostic controls:
+
+- **Debug logging** is persistent and defaults to **OFF**. When enabled, the
+  module writes engine, input and audio diagnostics to `ML/LOGS/DOOM550D.LOG`
+  and `ML/LOGS/DOOMRAW.LOG`.
+- **Clear Doom logs** removes only files matching `ML/LOGS/DOOM*.LOG`. It
+  refuses to run while Doom is active and never removes WADs, savegames or
+  configuration files.
+
+Disabling logging does not automatically remove existing logs; use the clear
+action when they are no longer needed.
+
 ## Audio
 
 The module reads MUS lumps directly from the selected IWAD. A low-CPU integer
-synthesizer renders 24 voices at 24 kHz and duplicates the result into the
-48 kHz Canon output, where it is mixed with Doom's original 8-bit sound
-effects. General MIDI program families select square, pulse, triangle or saw
-characters; percussion also uses noise. Attack, decay, sustain, release,
-channel volume and pitch bend are supported.
+synthesizer renders 24 band-limited voices at 24 kHz and linearly interpolates
+them into the 48 kHz Canon output, where they are mixed with Doom's original
+8-bit sound effects. General MIDI program families select table-driven square,
+pulse, triangle or saw characters; percussion also uses noise. Attack, decay,
+sustain, release, channel volume and pitch bend are supported.
 
 This gives an AdLib-like retro character while remaining light enough for
 fluid gameplay on the 550D. It is not cycle-accurate OPL2 emulation. Music and
 sound-effect levels are controlled independently from Doom's sound menu.
-Audio timing and missed buffer deadlines are written to
-`ML/LOGS/DOOM550D.LOG` when Doom exits.
+When debug logging is enabled, audio timing and missed buffer deadlines are
+written to `ML/LOGS/DOOM550D.LOG` when Doom exits.
 
 ## Porting to another Magic Lantern camera
 
@@ -211,7 +228,8 @@ adapted in these areas:
    shutdown and module unload on the physical camera.
 6. **Regression testing:** test several IWADs, new and overwritten saves,
    loading, every control, repeated starts, normal quit, forced module exit and
-   at least one long play session while checking `ML/LOGS/DOOM550D.LOG`.
+   at least one long play session after enabling debug logging and checking
+   `ML/LOGS/DOOM550D.LOG`.
 
 Keep the target camera's `autoexec.bin`, platform `.sym` file and newly built
 `doom.mo` together as one matching set. A useful contribution should identify
@@ -277,7 +295,7 @@ ignored by Git.
 - PWAD/mod selection is not implemented;
 - the synthesizer is AdLib-like, not cycle-accurate OPL2;
 - multiplayer/network play is not supported;
-- logs currently retain only the most recent run;
+- when enabled, logs retain only the most recent run;
 - this remains experimental software: keep SD-card backups.
 
 ## Credits and license

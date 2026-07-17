@@ -7,6 +7,8 @@
 #include <dryos.h>
 #include <fio-ml.h>
 
+#include "doom_debug.h"
+
 #define DOOM_ML_IO_CHUNK (64 * 1024)
 #define DOOM_ML_WRITE_BUFFER (16 * 1024)
 #define DOOM_ML_READ_BUFFER (16 * 1024)
@@ -36,7 +38,7 @@ static void doom_ml_append_log(const char *text)
     FILE *file;
     size_t length;
 
-    if (!text)
+    if (!doom_debug_enabled || !text)
         return;
 
     file = FIO_OpenFile("ML/LOGS/DOOM550D.LOG", O_RDWR | O_SYNC);

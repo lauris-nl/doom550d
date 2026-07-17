@@ -21,6 +21,15 @@ Savegames use a hash of the exact WAD filename so games remain separated::
 Selecting a slot with SET saves directly. Doom menu options, music volume and
 sound-effect volume are stored in ``ML/DOOM/CONFIG``.
 
+Debug logging
+-------------
+
+``Games > Doom > Debug logging`` is persistent and defaults to ``OFF``. Enable
+it before reproducing a problem to write ``DOOM550D.LOG`` and ``DOOMRAW.LOG``
+in ``ML/LOGS``. Select ``Clear Doom logs`` to remove only files matching
+``ML/LOGS/DOOM*.LOG``. The action is refused while Doom is running and never
+removes WADs, savegames or configuration files.
+
 Controls
 --------
 
@@ -41,14 +50,16 @@ Canon can process them below the module input layer.
 Audio
 -----
 
-MUS music is rendered by a 24-voice low-CPU synthesizer at 24 kHz and mixed
-with Doom's 8-bit effects in one 48 kHz mono Canon ASIF-DMA stream. Instrument
-families use several inexpensive waveforms, envelopes and percussion. The
-result has an AdLib-like retro character but is not cycle-accurate OPL2.
+MUS music is rendered by a 24-voice low-CPU synthesizer with band-limited
+tables at 24 kHz, linearly interpolated and mixed with Doom's 8-bit effects in
+one 48 kHz mono Canon ASIF-DMA stream. Instrument families use several
+inexpensive waveforms, envelopes and percussion. The result has an AdLib-like
+retro character but is not cycle-accurate OPL2.
 
 The installed Magic Lantern core and ``550D_109.sym`` must export the Canon
-audio functions required by the module. Audio render timing and missed
-deadlines are written to ``ML/LOGS/DOOM550D.LOG`` on shutdown.
+audio functions required by the module. When debug logging is enabled, audio
+render timing and missed deadlines are written to ``ML/LOGS/DOOM550D.LOG`` on
+shutdown.
 
 This module is only for the Canon EOS 550D with firmware 1.0.9. It remains
 experimental; back up the SD card before installation.
