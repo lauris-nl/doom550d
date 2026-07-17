@@ -1,0 +1,82 @@
+name: Bug report
+description: Report a reproducible problem with Doom550D
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve this experimental camera software.
+  - type: input
+    id: camera
+    attributes:
+      label: Camera
+      placeholder: Canon EOS 550D / Rebel T2i / Kiss X4
+    validations:
+      required: true
+  - type: input
+    id: canon_firmware
+    attributes:
+      label: Canon firmware
+      placeholder: "1.0.9"
+    validations:
+      required: true
+  - type: input
+    id: ml_build
+    attributes:
+      label: Magic Lantern build
+      description: Include the target, build date, and commit if known.
+    validations:
+      required: true
+  - type: input
+    id: doom550d_version
+    attributes:
+      label: Doom550D version or commit
+    validations:
+      required: true
+  - type: input
+    id: iwad
+    attributes:
+      label: IWAD
+      description: Name and version only; do not upload commercial IWAD files.
+      placeholder: Freedoom Phase 1 0.13.0
+    validations:
+      required: true
+  - type: input
+    id: screen_size
+    attributes:
+      label: Screen Size setting
+      description: State whether extra unofficial fullscreen was active.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: Describe the smallest reliable sequence of steps.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs and photos
+      description: Attach large logs as files. Remove sensitive information first.
+  - type: checkboxes
+    id: commercial_iwad
+    attributes:
+      label: Commercial IWAD confirmation
+      options:
+        - label: I confirm that I have not uploaded and will not upload a commercial IWAD or other proprietary game files.
+          required: true

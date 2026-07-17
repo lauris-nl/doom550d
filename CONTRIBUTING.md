@@ -1,28 +1,43 @@
 # Contributing to Doom550D
 
-Thank you for your interest in Doom550D.
-
-Doom550D is an experimental Doom port for the Canon EOS 550D running Magic Lantern. Contributions, testing reports and documentation improvements are welcome.
-
-## Before contributing
-
-Please open an issue before making large changes. This helps prevent duplicated work and allows technical details to be discussed first.
-
-Small bug fixes, documentation corrections and narrowly scoped improvements may be submitted directly as a pull request.
-
-## Supported target
-
-The primary supported platform is:
-
-- Canon EOS 550D / Rebel T2i / Kiss X4
-- Canon firmware 1.0.9
-- Magic Lantern target `550D.109`
-
-Changes must not break the existing 550D build unless the pull request clearly introduces support for another camera as a separate target.
+Doom550D is experimental software. Its primary platform is the Canon EOS 550D
+(Rebel T2i / Kiss X4), running Canon firmware 1.0.9 and the Magic Lantern
+`550D.109` target. Contributions should preserve that platform unless a change
+explicitly introduces and documents broader support.
 
 ## Building
 
-Doom550D is normally built inside a Magic Lantern source tree:
+From a configured Magic Lantern build environment, run:
 
-```text
-magiclantern_simplified/modules/doom550d/
+```sh
+make clean
+make -j"$(nproc)"
+```
+
+## Testing changes
+
+Test changes on the target camera and report the camera model, Magic Lantern
+build, Doom550D commit, and IWADs used. At minimum, verify:
+
+- Controls during gameplay, including movement and menu input
+- Opening, navigating, and closing menus
+- Every Screen Size setting, including switching to and from extra unofficial
+  fullscreen during gameplay
+- Saving and loading games
+- IWAD discovery and selection
+- Music and sound-effect playback
+- Clean shutdown and return to Magic Lantern without stuck input or audio
+
+Attach large logs as files instead of pasting them into an issue or pull
+request. Photos or short excerpts may be included where they clarify a result.
+
+## Implementation constraints
+
+- Do not perform SD-card I/O from button callbacks. Defer it to a safe task or
+  processing context.
+- Do not commit or distribute commercial Doom IWADs or other proprietary game
+  assets.
+- Freedoom IWADs may be used and shared in accordance with the Freedoom license.
+
+Keep pull requests focused, explain the reason for the change, and document any
+known limitations or untested behavior.

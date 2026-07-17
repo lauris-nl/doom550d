@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest a focused improvement for Doom550D
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: Doom550D primarily targets the Canon EOS 550D with firmware 1.0.9 and Magic Lantern 550D.109.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What limitation or need would this feature address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the desired behavior and user experience.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Camera and Magic Lantern considerations
+      description: Note hardware, performance, storage, input, or compatibility constraints.
+  - type: checkboxes
+    id: game_files
+    attributes:
+      label: Game files
+      options:
+        - label: I will not upload commercial IWADs or other proprietary game files.
+          required: true
