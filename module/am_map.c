@@ -268,6 +268,20 @@ cheatseq_t cheat_amap = CHEAT("iddt", 0);
 
 static boolean stopped = true;
 
+boolean AM_ExecuteCheat(void)
+{
+    if (deathmatch)
+        return false;
+
+    cheating = (cheating + 1) % 3;
+    return true;
+}
+
+int AM_GetCheatLevel(void)
+{
+    return cheating;
+}
+
 // Calculates the slope and slope according to the x-axis of a line
 // segment in map coordinates (with the upright y-axis n' all) so
 // that it can be used with the brain-dead drawing stuff.
@@ -701,7 +715,7 @@ AM_Responder
 	if (!deathmatch && cht_CheckCheat(&cheat_amap, ev->data2))
 	{
 	    rc = false;
-	    cheating = (cheating+1) % 3;
+	    AM_ExecuteCheat();
 	}
     }
     else if (ev->type == ev_keyup)

@@ -55,6 +55,7 @@ void V_CopyRect(int srcx, int srcy, byte *source,
                 int destx, int desty);
 
 void V_DrawPatch(int x, int y, patch_t *patch);
+void V_DrawPatch2x(int x, int y, patch_t *patch);
 void V_DrawPatchFlipped(int x, int y, patch_t *patch);
 void V_DrawTLPatch(int x, int y, patch_t *patch);
 void V_DrawAltTLPatch(int x, int y, patch_t * patch);
@@ -105,4 +106,3 @@ void V_LoadXlaTable(void);
 void V_DrawMouseSpeedBox(int speed);
 
 #endif
-

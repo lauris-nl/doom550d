@@ -13,6 +13,7 @@ Describe what changed and why it is needed.
 
 - [ ] Gameplay controls
 - [ ] Menu navigation
+- [ ] Secret cheat menu, including Cheats, Music, Level, and all IDDT positions
 - [ ] Screen Size switching, including extra unofficial fullscreen
 - [ ] Save and load
 - [ ] IWAD selection

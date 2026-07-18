@@ -41,11 +41,25 @@ Controls
 * Rear wheel: previous/next owned weapon
 * DISP. (called INFO internally by Magic Lantern): automap; back in menus
 * MENU: open/close the Doom menu
-* Delete/Trash: Escape/back
+* Delete/Trash three times quickly: open the secret cheat menu; back inside it
 * Q: confirm the Doom quit dialog
 
 ISO, depth-of-field and shutter controls are deliberately not used because
 Canon can process them below the module input layer.
+
+Secret cheat menu
+-----------------
+
+During an active single-player level, press Delete/Trash three times within
+1.2 seconds. The first two presses intentionally do nothing. The third opens a
+paused Doom-style menu for classic cheats, music present in the active IWAD,
+and maps present in the active IWAD. Use up/down to select, SET to activate,
+and left, INFO, MENU or Delete/Trash to go back.
+
+Stateful cheats use Doom-style sliders. IDDT has three positions: normal map,
+full map, and map plus objects. Active music and levels are marked ``PLAYING``.
+Classic gameplay cheats remain disabled on Nightmare as in Doom; IDDT and
+level warps retain their original exceptions.
 
 Display
 -------

@@ -27,6 +27,7 @@
 #include <string.h>
 
 #include "doom_config.h"
+#include "doom_cheat_menu.h"
 #include "deh_main.h"
 #include "doomdef.h"
 #include "doomstat.h"
@@ -312,7 +313,7 @@ void D_Display (void)
     oldgamestate = wipegamestate = gamestate;
     
     // draw pause pic
-    if (paused)
+    if (paused && !doom_cheat_menu_captures_input())
     {
 	int pause_x;
 
@@ -333,6 +334,7 @@ void D_Display (void)
 
     // menus go directly to the screen
     M_Drawer ();          // menu is drawn even on top of everything
+    doom_cheat_menu_draw();
 
     if (full_lcd_frame)
         I_EndFullLcdOverlay();
@@ -450,6 +452,9 @@ void doomgeneric_Tick()
 {
     // frame syncronous IO operations
     I_StartFrame ();
+
+    // Apply camera-menu requests in the Doom task, never in the raw callback.
+    doom_cheat_menu_ticker();
 
     TryRunTics (); // will run at least one tic
 

@@ -20,6 +20,7 @@
 #include "d_player.h"
 #include "doomstat.h"
 #include "doom_audio_ml.h"
+#include "doom_cheat_menu.h"
 #include "doom_debug.h"
 #include "m_config.h"
 #include "p_saveg.h"
@@ -58,6 +59,8 @@ static unsigned short key_queue[KEYQUEUE_SIZE];
 static unsigned int key_write = 0;
 static unsigned int key_read = 0;
 static unsigned char key_state[256];
+static uint32_t cheat_trash_first_ms;
+static unsigned int cheat_trash_count;
 
 #define DOOM_RAW_TRACE_MAX 192
 
@@ -901,12 +904,15 @@ static void doom550d_task(void *arg)
     doom_tick_count = 0;
     doom_draw_count = 0;
     zoom_run_pressed = 0;
+    cheat_trash_first_ms = 0;
+    cheat_trash_count = 0;
     doom_log_checkpoint("task-start");
     key_read = 0;
     key_write = 0;
     memset(key_state, 0, sizeof(key_state));
     memset(pulse_deadline, 0, sizeof(pulse_deadline));
     doom_raw_trace_count = 0;
+    doom_cheat_menu_reset();
     gamestate = GS_DEMOSCREEN;
     wipegamestate = GS_DEMOSCREEN;
     D_ResetDisplayState();
@@ -966,6 +972,7 @@ static void doom550d_task(void *arg)
     M_SaveDefaults();
     doom_raw_trace_dump();
     release_game_keys();
+    doom_cheat_menu_reset();
     M_ResetSessionState();
     clear_doom_area();
     restore_saved_palette();
@@ -973,6 +980,8 @@ static void doom550d_task(void *arg)
 
     doom_running = 0;
     doom_task_active = 0;
+    cheat_trash_first_ms = 0;
+    cheat_trash_count = 0;
     doom_ml_exit_requested = 0;
     menu_redraw_blocked = 0;
 }
@@ -1191,6 +1200,32 @@ static unsigned int doom550d_keypress_raw(unsigned int context)
 
     key = event->param;
 
+    if (doom_cheat_menu_captures_input())
+    {
+        switch (key)
+        {
+            case DOOM_BGMT_PRESS_UP:
+                doom_cheat_menu_queue(DOOM_CHEAT_MENU_UP);
+                break;
+            case DOOM_BGMT_PRESS_DOWN:
+                doom_cheat_menu_queue(DOOM_CHEAT_MENU_DOWN);
+                break;
+            case DOOM_BGMT_PRESS_SET:
+                doom_cheat_menu_queue(DOOM_CHEAT_MENU_SELECT);
+                break;
+            case DOOM_BGMT_PRESS_LEFT:
+            case DOOM_BGMT_INFO:
+            case DOOM_BGMT_TRASH:
+            case DOOM_BGMT_MENU:
+                doom_cheat_menu_queue(DOOM_CHEAT_MENU_BACK);
+                break;
+            default:
+                break;
+        }
+
+        return 0;
+    }
+
     switch (key)
     {
         case DOOM_BGMT_PRESS_UP:
@@ -1305,9 +1340,33 @@ static unsigned int doom550d_keypress_raw(unsigned int context)
 
         /* Never let Delete open a hidden Magic Lantern menu over Doom. */
         case DOOM_BGMT_TRASH:
-            release_game_keys();
-            tap_key(KEY_ESCAPE);
+        {
+            uint32_t now = (uint32_t)get_ms_clock();
+
+            if (cheat_trash_count == 0
+             || (uint32_t)(now - cheat_trash_first_ms) > 1200)
+            {
+                cheat_trash_first_ms = now;
+                cheat_trash_count = 1;
+            }
+            else
+            {
+                cheat_trash_count++;
+            }
+
+            if (cheat_trash_count >= 3)
+            {
+                cheat_trash_count = 0;
+                cheat_trash_first_ms = 0;
+                release_game_keys();
+                doom_cheat_menu_request_open();
+                return 0;
+            }
+
+            /* Keep the first two presses invisible.  They only arm the
+             * hidden triple-press gesture and must not open Doom's menu. */
             return 0;
+        }
 
         case DOOM_BGMT_MENU:
             if ((uint32_t)get_ms_clock() - doom_start_ms < 5000)

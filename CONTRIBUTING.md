@@ -21,6 +21,9 @@ build, Doom550D commit, and IWADs used. At minimum, verify:
 
 - Controls during gameplay, including movement and menu input
 - Opening, navigating, and closing menus
+- Opening the secret cheat menu with three quick Delete/Trash presses;
+  navigating Cheats, Music, and Level; toggling stateful cheats; cycling all
+  three IDDT positions; and returning cleanly to gameplay
 - Every Screen Size setting, including switching to and from extra unofficial
   fullscreen during gameplay
 - Saving and loading games

@@ -64,6 +64,10 @@ void S_StartMusic(int music_id);
 //  and set whether looping
 void S_ChangeMusic(int music_id, int looping);
 
+// Resolve the music used by a Doom-format episode/map and query playback.
+int S_MusicForMap(int episode, int map);
+int S_GetMusicNumber(void);
+
 // query if music is playing
 boolean S_MusicPlaying(void);
 
@@ -86,4 +90,3 @@ void S_SetSfxVolume(int volume);
 extern int snd_channels;
 
 #endif
-

@@ -87,4 +87,13 @@ cht_GetParam
     memcpy(buffer, cht->parameter_buf, cht->parameter_chars);
 }
 
+void cht_ResetCheat(cheatseq_t *cht)
+{
+    if (cht == NULL)
+        return;
+
+    cht->chars_read = 0;
+    cht->param_chars_read = 0;
+    memset(cht->parameter_buf, 0, sizeof(cht->parameter_buf));
+}
 

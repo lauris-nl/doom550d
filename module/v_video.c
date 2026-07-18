@@ -195,6 +195,53 @@ void V_DrawPatch(int x, int y, patch_t *patch)
     }
 }
 
+// Draw a patch with exact nearest-neighbour 2x pixels.  This is used for
+// the camera cheat menu only; regular Doom rendering remains unchanged.
+void V_DrawPatch2x(int x, int y, patch_t *patch)
+{
+    int col;
+    int width;
+
+    if (dest_screen == NULL || patch == NULL)
+        return;
+
+    x -= SHORT(patch->leftoffset) * 2;
+    y -= SHORT(patch->topoffset) * 2;
+    width = SHORT(patch->width);
+
+    for (col = 0; col < width; col++)
+    {
+        column_t *column = (column_t *)((byte *)patch
+                                      + LONG(patch->columnofs[col]));
+
+        while (column->topdelta != 0xff)
+        {
+            byte *source = (byte *)column + 3;
+            int row;
+
+            for (row = 0; row < column->length; row++)
+            {
+                int draw_x = x + col * 2;
+                int draw_y = y + (column->topdelta + row) * 2;
+
+                if (draw_x >= 0 && draw_x + 1 < SCREENWIDTH
+                 && draw_y >= 0 && draw_y + 1 < SCREENHEIGHT)
+                {
+                    byte color = source[row];
+                    byte *dest = dest_screen + draw_y * SCREENWIDTH + draw_x;
+
+                    dest[0] = color;
+                    dest[1] = color;
+                    dest[SCREENWIDTH] = color;
+                    dest[SCREENWIDTH + 1] = color;
+                }
+            }
+
+            column = (column_t *)((byte *)column + column->length + 4);
+        }
+    }
+}
+
 //
 // V_DrawPatchFlipped
 // Masks a column based masked pic to the screen.
@@ -930,4 +977,3 @@ void V_DrawMouseSpeedBox(int speed)
     V_DrawVertLine(box_x + redline_x, box_y + 1,
                  MOUSE_SPEED_BOX_HEIGHT - 2, red);
 }
-

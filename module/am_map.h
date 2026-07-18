@@ -42,6 +42,10 @@ void AM_Drawer (void);
 // if the level is completed while it is up.
 void AM_Stop (void);
 
+// Shared by the text cheat and the camera cheat menu.
+boolean AM_ExecuteCheat(void);
+int AM_GetCheatLevel(void);
+
 
 extern cheatseq_t cheat_amap;
 

@@ -5,13 +5,13 @@ Doom running as a Magic Lantern module on the Canon EOS 550D / Rebel T2i / Kiss 
 This repository contains the module source and release documentation. It does
 not contain Doom, Freedoom, or any other WAD data.
 
-> Status: experimental. Release `v0.3.2` is built for the Canon EOS
+> Status: experimental. Release `v0.4.0` is built for the Canon EOS
 > 550D and is the best playable build tested so far. It is not intended for
 > other cameras.
 
 ## Watch Doom550D in action
 
-[![Doom550D demonstration video](https://img.youtube.com/vi/G8sIcxkxpmQ/maxresdefault.jpg)](https://www.youtube.com/watch?v=G8sIcxkxpmQ)
+<a href="https://www.youtube.com/watch?v=G8sIcxkxpmQ"><img src="https://img.youtube.com/vi/G8sIcxkxpmQ/maxresdefault.jpg" alt="Doom550D demonstration video" width="720"></a>
 
 [▶ Watch Kick play DOOM on a Canon EOS 550D](https://www.youtube.com/watch?v=G8sIcxkxpmQ)
 
@@ -19,13 +19,12 @@ not contain Doom, Freedoom, or any other WAD data.
 
 ## Screenshots
 
-![Doom title screen](screenshots/doom_title.jpg)
-
-![Doom running on Canon 550D](screenshots/doom_ingame1.jpg)
-
-![Doom gameplay on Canon 550D](screenshots/doom_ingame2.jpg)
-
-![Doom menu on Canon 550D](screenshots/doom_menu.jpg)
+<p align="center">
+  <img src="screenshots/doom_title.jpg" alt="Doom title screen" width="49%">
+  <img src="screenshots/doom_ingame1.jpg" alt="Doom running on Canon 550D" width="49%"><br>
+  <img src="screenshots/doom_ingame2.jpg" alt="Doom gameplay on Canon 550D" width="49%">
+  <img src="screenshots/doom_menu.jpg" alt="Doom menu on Canon 550D" width="49%">
+</p>
 
 ## Features
 
@@ -38,6 +37,7 @@ not contain Doom, Freedoom, or any other WAD data.
 - music mixed with Doom's 8-bit effects into 48 kHz mono camera audio;
 - cleanup of input, display, palette, and audio state when Doom exits;
 - Canon 550D press/release controls, including held run and strafe modifiers;
+- a secret in-game menu for classic cheats, available music and present maps;
 - an **extra unofficial fullscreen** Screen Size setting that renders gameplay
   at 360x240 and presents each game pixel as an exact 2x2 block at 720x480.
 
@@ -150,12 +150,31 @@ Download links for freely distributable or commercially available data:
 | Rear wheel | Previous/next owned weapon |
 | DISP. (called INFO internally by Magic Lantern) | Automap; back while in menus |
 | MENU | Open/close the Doom menu |
-| Delete/Trash | Escape/back; the Magic Lantern menu is blocked while Doom runs |
+| Delete/Trash three times quickly | Open the secret cheat menu; back inside that menu |
 | Q | Confirm the Doom quit dialog |
 
 ISO, the depth-of-field button and the shutter buttons are deliberately not
 used as Doom actions. Canon handles them below the module input layer and can
 otherwise show EOS overlays, autofocus, or steal the game controls.
+
+## Secret cheat menu
+
+During an active single-player level, press Delete/Trash three times within
+1.2 seconds. The first two presses deliberately have no visible action. The
+third opens a paused Doom-style menu with three sections:
+
+- **Cheats:** activate classic Doom cheat codes and inspect their live state.
+  Toggleable cheats use Doom-style sliders. IDDT cycles through normal map,
+  full map, and map plus objects.
+- **Music:** select music entries that are present in the active IWAD. The
+  current entry is marked **PLAYING**.
+- **Level:** warp only to maps present in the active IWAD. The current level is
+  marked **PLAYING**.
+
+Use up/down to select, SET to activate, and left, INFO, MENU, or Delete/Trash
+to go back. Classic gameplay cheats remain disabled on Nightmare as in Doom;
+IDDT and level warps retain their original exceptions. The menu performs no
+SD-card I/O from camera button callbacks.
 
 ## Display
 
@@ -316,6 +335,7 @@ ignored by Git.
 - PWAD/mod selection is not implemented;
 - the synthesizer is AdLib-like, not cycle-accurate OPL2;
 - multiplayer/network play is not supported;
+- the secret cheat menu is available only during an active single-player level;
 - when enabled, logs retain only the most recent run;
 - this remains experimental software: keep SD-card backups.
 

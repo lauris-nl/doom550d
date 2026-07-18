@@ -68,6 +68,7 @@ void G_BuildTiccmd (ticcmd_t *cmd, int maketic);
 
 void G_Ticker (void);
 boolean G_Responder (event_t*	ev);
+void G_ResetInputState(void);
 
 void G_ScreenShot (void);
 
@@ -77,4 +78,3 @@ int G_VanillaVersionCode(void);
 extern int vanilla_savegame_limit;
 extern int vanilla_demo_limit;
 #endif
-

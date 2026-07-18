@@ -54,6 +54,13 @@ void M_ResetSessionState(void);
 // does nothing if menu is already up.
 void M_StartControlPanel (void);
 
+// Shared Doom-style drawing helpers used by the camera cheat overlay.
+void M_ClearMenus(void);
+void M_DrawThermo(int x, int y, int thermWidth, int thermDot);
+void M_WriteText(int x, int y, char *string);
+void M_WriteText2x(int x, int y, char *string);
+int M_StringWidth(char *string);
+
 
 
 extern int detailLevel;

@@ -29,6 +29,14 @@
 - Continue long-duration save/load, quit, repeated-start, palette and control
   regression testing.
 
+## Completed in v0.4.0
+
+- Add the secret in-game menu for classic cheats, available IWAD music, and
+  present levels.
+- Add live Doom-style state sliders, including all three IDDT automap modes.
+- Keep camera callbacks free of SD-card I/O and isolate paused menu input from
+  gameplay and the Magic Lantern menu.
+
 ## Completed in v0.3.2
 
 - Add the extra unofficial fullscreen Screen Size setting with a 360x240

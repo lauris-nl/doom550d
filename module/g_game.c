@@ -233,6 +233,19 @@ int		bodyqueslot;
 int             vanilla_savegame_limit = 1;
 int             vanilla_demo_limit = 1;
 
+void G_ResetInputState(void)
+{
+    memset(gamekeydown, 0, sizeof(gamekeydown));
+    memset(mousearray, 0, sizeof(mousearray));
+    memset(joyarray, 0, sizeof(joyarray));
+    mousex = mousey = 0;
+    joyxmove = joyymove = joystrafemove = 0;
+    turnheld = 0;
+    next_weapon = 0;
+    sendpause = false;
+    sendsave = false;
+}
+
 int G_CmdChecksum (ticcmd_t* cmd)
 {
     size_t		i;
@@ -1615,7 +1628,7 @@ void G_DoLoadGame (void)
      * Clear both input queues and all held keys after a successful load.
      * The SET release from the load menu may otherwise remain stale.
      */
-    memset(gamekeydown, 0, sizeof(gamekeydown));
+    G_ResetInputState();
     D_ClearEvents();
     DG_ResetInput();
     fprintf(stderr, "load: input-reset complete\n");

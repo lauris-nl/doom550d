@@ -102,6 +102,32 @@ static boolean mus_paused;
 
 static musicinfo_t *mus_playing = NULL;
 
+int S_MusicForMap(int episode, int map)
+{
+    static const int episode4_music[9] =
+    {
+        mus_e3m4, mus_e3m2, mus_e3m3,
+        mus_e1m5, mus_e2m7, mus_e2m4,
+        mus_e2m6, mus_e2m5, mus_e1m9
+    };
+
+    if (episode < 1 || episode > 4 || map < 1 || map > 9)
+        return mus_None;
+
+    if (episode == 4)
+        return episode4_music[map - 1];
+
+    return mus_e1m1 + (episode - 1) * 9 + map - 1;
+}
+
+int S_GetMusicNumber(void)
+{
+    if (mus_playing == NULL)
+        return mus_None;
+
+    return (int)(mus_playing - S_music);
+}
+
 // Number of channels to use
 
 int snd_channels = 8;
@@ -213,29 +239,7 @@ void S_Start(void)
     }
     else
     {
-        int spmus[]=
-        {
-            // Song - Who? - Where?
-
-            mus_e3m4,        // American     e4m1
-            mus_e3m2,        // Romero       e4m2
-            mus_e3m3,        // Shawn        e4m3
-            mus_e1m5,        // American     e4m4
-            mus_e2m7,        // Tim          e4m5
-            mus_e2m4,        // Romero       e4m6
-            mus_e2m6,        // J.Anderson   e4m7 CHIRON.WAD
-            mus_e2m5,        // Shawn        e4m8
-            mus_e1m9,        // Tim          e4m9
-        };
-
-        if (gameepisode < 4)
-        {
-            mnum = mus_e1m1 + (gameepisode-1)*9 + gamemap-1;
-        }
-        else
-        {
-            mnum = spmus[gamemap-1];
-        }
+		mnum = S_MusicForMap(gameepisode, gamemap);
     }        
 
     S_ChangeMusic(mnum, true);
@@ -643,6 +647,10 @@ void S_ChangeMusic(int musicnum, int looping)
     handle = I_RegisterSong(music->data, W_LumpLength(music->lumpnum));
     music->handle = handle;
     I_PlaySong(handle, looping);
+
+    // Replacing a song while Doom is paused must not silently unpause audio.
+    if (mus_paused)
+        I_PauseSong();
 
     mus_playing = music;
 }

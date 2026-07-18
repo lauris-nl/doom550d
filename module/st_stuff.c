@@ -408,6 +408,86 @@ cheatseq_t cheat_choppers = CHEAT("idchoppers", 0);
 cheatseq_t cheat_clev = CHEAT("idclev", 2);
 cheatseq_t cheat_mypos = CHEAT("idmypos", 0);
 
+static int ST_DoomEpisodeLimit(void)
+{
+    if (gameversion == exe_chex)
+        return 1;
+
+    if (gamemode == shareware)
+        return 1;
+    if (gamemode == registered)
+        return 3;
+    if (gamemode == retail)
+        return 4;
+
+    return 0;
+}
+
+int ST_MusicCheatCodeToMusic(const char *digits)
+{
+    int episode;
+    int map;
+    int number;
+
+    if (digits == NULL
+     || digits[0] < '0' || digits[0] > '9'
+     || digits[1] < '0' || digits[1] > '9')
+        return mus_None;
+
+    if (gamemode == commercial)
+    {
+        number = (digits[0] - '0') * 10 + digits[1] - '0';
+        if (number < 1 || number > 35)
+            return mus_None;
+
+        return mus_runnin + number - 1;
+    }
+
+    episode = digits[0] - '0';
+    map = digits[1] - '0';
+    if (episode < 1 || episode > ST_DoomEpisodeLimit()
+     || map < 1 || map > 9)
+        return mus_None;
+
+    return S_MusicForMap(episode, map);
+}
+
+boolean ST_LevelCheatCodeToMap(const char *digits, int *episode, int *map)
+{
+    int result_episode;
+    int result_map;
+
+    if (digits == NULL || episode == NULL || map == NULL
+     || digits[0] < '0' || digits[0] > '9'
+     || digits[1] < '0' || digits[1] > '9')
+        return false;
+
+    if (gamemode == commercial)
+    {
+        result_episode = 1;
+        result_map = (digits[0] - '0') * 10 + digits[1] - '0';
+        if (result_map < 1 || result_map > 40)
+            return false;
+    }
+    else
+    {
+        result_episode = digits[0] - '0';
+        result_map = digits[1] - '0';
+
+        // Chex.exe always warps to episode 1.
+        if (gameversion == exe_chex)
+            result_episode = 1;
+
+        if (result_episode < 1 || result_episode > ST_DoomEpisodeLimit()
+         || result_map < 1 || result_map > 9)
+            return false;
+    }
+
+    *episode = result_episode;
+    *map = result_map;
+    return true;
+}
+
 
 //
 // STATUS BAR CODE
@@ -520,29 +600,11 @@ ST_Responder (event_t* ev)
 	plyr->message = DEH_String(STSTR_MUS);
 	cht_GetParam(&cheat_mus, buf);
 
-        // Note: The original v1.9 had a bug that tried to play back
-        // the Doom II music regardless of gamemode.  This was fixed
-        // in the Ultimate Doom executable so that it would work for
-        // the Doom 1 music as well.
-
-	if (gamemode == commercial || gameversion < exe_ultimate)
-	{
-	  musnum = mus_runnin + (buf[0]-'0')*10 + buf[1]-'0' - 1;
-	  
-	  if (((buf[0]-'0')*10 + buf[1]-'0') > 35)
-	    plyr->message = DEH_String(STSTR_NOMUS);
-	  else
-	    S_ChangeMusic(musnum, 1);
-	}
+	musnum = ST_MusicCheatCodeToMusic(buf);
+	if (musnum == mus_None)
+	  plyr->message = DEH_String(STSTR_NOMUS);
 	else
-	{
-	  musnum = mus_e1m1 + (buf[0]-'1')*9 + (buf[1]-'1');
-	  
-	  if (((buf[0]-'1')*9 + buf[1]-'1') > 31)
-	    plyr->message = DEH_String(STSTR_NOMUS);
-	  else
-	    S_ChangeMusic(musnum, 1);
-	}
+	  S_ChangeMusic(musnum, 1);
       }
       else if ( (logical_gamemission == doom 
                  && cht_CheckCheat(&cheat_noclip, ev->data2))
@@ -609,48 +671,7 @@ ST_Responder (event_t* ev)
       
       cht_GetParam(&cheat_clev, buf);
       
-      if (gamemode == commercial)
-      {
-	epsd = 1;
-	map = (buf[0] - '0')*10 + buf[1] - '0';
-      }
-      else
-      {
-	epsd = buf[0] - '0';
-	map = buf[1] - '0';
-      }
-
-      // Chex.exe always warps to episode 1.
-
-      if (gameversion == exe_chex)
-      {
-        epsd = 1;
-      }
-
-      // Catch invalid maps.
-      if (epsd < 1)
-	return false;
-
-      if (map < 1)
-	return false;
-
-      // Ohmygod - this is not going to work.
-      if ((gamemode == retail)
-	  && ((epsd > 4) || (map > 9)))
-	return false;
-
-      if ((gamemode == registered)
-	  && ((epsd > 3) || (map > 9)))
-	return false;
-
-      if ((gamemode == shareware)
-	  && ((epsd > 1) || (map > 9)))
-	return false;
-
-      // The source release has this check as map > 34. However, Vanilla
-      // Doom allows IDCLEV up to MAP40 even though it normally crashes.
-      if ((gamemode == commercial)
-	&& (( epsd > 1) || (map > 40)))
+      if (!ST_LevelCheatCodeToMap(buf, &epsd, &map))
 	return false;
 
       // So be it.
@@ -1414,4 +1435,3 @@ void ST_Init (void)
     ST_loadData();
     st_backing_screen = (byte *) Z_Malloc(ST_WIDTH * ST_HEIGHT, PU_STATIC, 0);
 }
-

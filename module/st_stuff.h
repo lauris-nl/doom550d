@@ -85,5 +85,8 @@ extern cheatseq_t cheat_choppers;
 extern cheatseq_t cheat_clev;
 extern cheatseq_t cheat_mypos;
 
+int ST_MusicCheatCodeToMusic(const char *digits);
+boolean ST_LevelCheatCodeToMap(const char *digits, int *episode, int *map);
+
 
 #endif

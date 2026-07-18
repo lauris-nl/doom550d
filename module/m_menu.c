@@ -1417,6 +1417,42 @@ M_WriteText
     }
 }
 
+void M_WriteText2x(int x, int y, char *string)
+{
+    int cx = x;
+    int cy = y;
+    char *ch = string;
+
+    while (1)
+    {
+        int c = *ch++;
+        int width;
+
+        if (!c)
+            break;
+        if (c == '\n')
+        {
+            cx = x;
+            cy += 24;
+            continue;
+        }
+
+        c = toupper(c) - HU_FONTSTART;
+        if (c < 0 || c >= HU_FONTSIZE)
+        {
+            cx += 8;
+            continue;
+        }
+
+        width = SHORT(hu_font[c]->width) * 2;
+        if (cx + width > SCREENWIDTH)
+            break;
+
+        V_DrawPatch2x(cx, cy, hu_font[c]);
+        cx += width;
+    }
+}
+
 // These keys evaluate to a "null" key in Vanilla Doom that allows weird
 // jumping in the menus. Preserve this behavior for accuracy.
 

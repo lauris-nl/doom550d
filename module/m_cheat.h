@@ -58,5 +58,7 @@ cht_GetParam
 ( cheatseq_t*		cht,
   char*			buffer );
 
+void cht_ResetCheat(cheatseq_t *cht);
+
 
 #endif
