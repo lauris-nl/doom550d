@@ -21,6 +21,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "dstrings.h"
 #include "deh_main.h"
@@ -34,17 +35,44 @@
 #include "g_game.h"
 #include "m_misc.h"
 #include "r_state.h"
+#include "w_checksum.h"
+#include "w_wad.h"
 
 #define SAVEGAME_EOF 0x1d
 #define VERSIONSIZE 16
 #define ML_SAVEGAME_PATH_MAX 128
 #define ML_SAVEGAME_DIR "ML/DOOM/SAVES"
+#define ML_SAVEGAME_VERSION "D550D-SAVE-0001"
 
 FILE *save_stream;
 int savegamelength;
 boolean savegame_error;
 static char ml_savegame_prefix[ML_SAVEGAME_PATH_MAX] =
     ML_SAVEGAME_DIR "/00000000";
+
+extern int numflats;
+extern int numtextures;
+
+static void saveg_invalid(const char *field, int value, int limit)
+{
+    if (!savegame_error)
+    {
+        fprintf(stderr, "savegame: invalid %s=%d (limit %d)\n",
+                field, value, limit);
+        savegame_error = true;
+    }
+}
+
+static int saveg_checked_index(const char *field, int value, int limit)
+{
+    if (value < 0 || value >= limit)
+    {
+        saveg_invalid(field, value, limit);
+        return 0;
+    }
+
+    return value;
+}
 
 static uint32_t SaveGameNameHash(const char *name)
 {
@@ -338,6 +366,7 @@ static void saveg_write_thinker_t(thinker_t *str)
 static void saveg_read_mobj_t(mobj_t *str)
 {
     int pl;
+    int state;
 
     // thinker_t thinker;
     saveg_read_thinker_t(&str->thinker);
@@ -361,10 +390,14 @@ static void saveg_read_mobj_t(mobj_t *str)
     str->angle = saveg_read32();
 
     // spritenum_t sprite;
-    str->sprite = saveg_read_enum();
+    str->sprite = saveg_checked_index("mobj sprite", saveg_read_enum(),
+                                      numsprites);
 
     // int frame;
     str->frame = saveg_read32();
+    if ((str->frame & FF_FRAMEMASK) >= sprites[str->sprite].numframes)
+        saveg_invalid("mobj frame", str->frame & FF_FRAMEMASK,
+                      sprites[str->sprite].numframes);
 
     // struct mobj_s* bnext;
     str->bnext = saveg_readp();
@@ -400,7 +433,8 @@ static void saveg_read_mobj_t(mobj_t *str)
     str->validcount = saveg_read32();
 
     // mobjtype_t type;
-    str->type = saveg_read_enum();
+    str->type = saveg_checked_index("mobj type", saveg_read_enum(),
+                                    NUMMOBJTYPES);
 
     // mobjinfo_t* info;
     str->info = saveg_readp();
@@ -409,7 +443,14 @@ static void saveg_read_mobj_t(mobj_t *str)
     str->tics = saveg_read32();
 
     // state_t* state;
-    str->state = &states[saveg_read32()];
+    state = saveg_checked_index("mobj state", saveg_read32(), NUMSTATES);
+    str->state = &states[state];
+    if ((unsigned int)str->state->sprite >= (unsigned int)numsprites
+     || (str->state->frame & FF_FRAMEMASK)
+        >= sprites[str->state->sprite].numframes)
+    {
+        saveg_invalid("mobj sprite frame", state, NUMSTATES);
+    }
 
     // int flags;
     str->flags = saveg_read32();
@@ -435,13 +476,15 @@ static void saveg_read_mobj_t(mobj_t *str)
     // struct player_s* player;
     pl = saveg_read32();
 
-    if (pl > 0)
+    if (pl > 0 && pl <= MAXPLAYERS)
     {
         str->player = &players[pl - 1];
         str->player->mo = str;
     }
     else
     {
+        if (pl < 0 || pl > MAXPLAYERS)
+            saveg_invalid("mobj player", pl, MAXPLAYERS + 1);
         str->player = NULL;
     }
 
@@ -632,6 +675,7 @@ static void saveg_read_pspdef_t(pspdef_t *str)
 
     if (state > 0)
     {
+        state = saveg_checked_index("psprite state", state, NUMSTATES);
         str->state = &states[state];
     }
     else
@@ -683,7 +727,9 @@ static void saveg_read_player_t(player_t *str)
     str->mo = saveg_readp();
 
     // playerstate_t playerstate;
-    str->playerstate = saveg_read_enum();
+    str->playerstate = saveg_checked_index("player state",
+                                           saveg_read_enum(),
+                                           PST_REBORN + 1);
 
     // ticcmd_t cmd;
     saveg_read_ticcmd_t(&str->cmd);
@@ -731,10 +777,17 @@ static void saveg_read_player_t(player_t *str)
     }
 
     // weapontype_t readyweapon;
-    str->readyweapon = saveg_read_enum();
+    str->readyweapon = saveg_checked_index("ready weapon",
+                                           saveg_read_enum(), NUMWEAPONS);
 
     // weapontype_t pendingweapon;
     str->pendingweapon = saveg_read_enum();
+    if (str->pendingweapon != wp_nochange
+     && str->pendingweapon >= NUMWEAPONS)
+    {
+        saveg_invalid("pending weapon", str->pendingweapon, NUMWEAPONS);
+        str->pendingweapon = wp_nochange;
+    }
 
     // boolean weaponowned[NUMWEAPONS];
     for (i=0; i<NUMWEAPONS; ++i)
@@ -950,10 +1003,11 @@ static void saveg_read_ceiling_t(ceiling_t *str)
     saveg_read_thinker_t(&str->thinker);
 
     // ceiling_e type;
-    str->type = saveg_read_enum();
+    str->type = saveg_checked_index("ceiling type", saveg_read_enum(),
+                                    silentCrushAndRaise + 1);
 
     // sector_t* sector;
-    sector = saveg_read32();
+    sector = saveg_checked_index("ceiling sector", saveg_read32(), numsectors);
     str->sector = &sectors[sector];
 
     // fixed_t bottomheight;
@@ -1023,10 +1077,11 @@ static void saveg_read_vldoor_t(vldoor_t *str)
     saveg_read_thinker_t(&str->thinker);
 
     // vldoor_e type;
-    str->type = saveg_read_enum();
+    str->type = saveg_checked_index("door type", saveg_read_enum(),
+                                    vld_blazeClose + 1);
 
     // sector_t* sector;
-    sector = saveg_read32();
+    sector = saveg_checked_index("door sector", saveg_read32(), numsectors);
     str->sector = &sectors[sector];
 
     // fixed_t topheight;
@@ -1084,13 +1139,14 @@ static void saveg_read_floormove_t(floormove_t *str)
     saveg_read_thinker_t(&str->thinker);
 
     // floor_e type;
-    str->type = saveg_read_enum();
+    str->type = saveg_checked_index("floor type", saveg_read_enum(),
+                                    raiseFloor512 + 1);
 
     // boolean crush;
     str->crush = saveg_read32();
 
     // sector_t* sector;
-    sector = saveg_read32();
+    sector = saveg_checked_index("floor sector", saveg_read32(), numsectors);
     str->sector = &sectors[sector];
 
     // int direction;
@@ -1100,7 +1156,8 @@ static void saveg_read_floormove_t(floormove_t *str)
     str->newspecial = saveg_read32();
 
     // short texture;
-    str->texture = saveg_read16();
+    str->texture = saveg_checked_index("moving floor flat", saveg_read16(),
+                                       numflats);
 
     // fixed_t floordestheight;
     str->floordestheight = saveg_read32();
@@ -1151,7 +1208,7 @@ static void saveg_read_plat_t(plat_t *str)
     saveg_read_thinker_t(&str->thinker);
 
     // sector_t* sector;
-    sector = saveg_read32();
+    sector = saveg_checked_index("platform sector", saveg_read32(), numsectors);
     str->sector = &sectors[sector];
 
     // fixed_t speed;
@@ -1170,10 +1227,12 @@ static void saveg_read_plat_t(plat_t *str)
     str->count = saveg_read32();
 
     // plat_e status;
-    str->status = saveg_read_enum();
+    str->status = saveg_checked_index("platform status", saveg_read_enum(),
+                                      in_stasis + 1);
 
     // plat_e oldstatus;
-    str->oldstatus = saveg_read_enum();
+    str->oldstatus = saveg_checked_index("old platform status",
+                                         saveg_read_enum(), in_stasis + 1);
 
     // boolean crush;
     str->crush = saveg_read32();
@@ -1182,7 +1241,8 @@ static void saveg_read_plat_t(plat_t *str)
     str->tag = saveg_read32();
 
     // plattype_e type;
-    str->type = saveg_read_enum();
+    str->type = saveg_checked_index("platform type", saveg_read_enum(),
+                                    blazeDWUS + 1);
 }
 
 static void saveg_write_plat_t(plat_t *str)
@@ -1236,7 +1296,7 @@ static void saveg_read_lightflash_t(lightflash_t *str)
     saveg_read_thinker_t(&str->thinker);
 
     // sector_t* sector;
-    sector = saveg_read32();
+    sector = saveg_checked_index("flash sector", saveg_read32(), numsectors);
     str->sector = &sectors[sector];
 
     // int count;
@@ -1291,7 +1351,7 @@ static void saveg_read_strobe_t(strobe_t *str)
     saveg_read_thinker_t(&str->thinker);
 
     // sector_t* sector;
-    sector = saveg_read32();
+    sector = saveg_checked_index("strobe sector", saveg_read32(), numsectors);
     str->sector = &sectors[sector];
 
     // int count;
@@ -1346,7 +1406,7 @@ static void saveg_read_glow_t(glow_t *str)
     saveg_read_thinker_t(&str->thinker);
 
     // sector_t* sector;
-    sector = saveg_read32();
+    sector = saveg_checked_index("glow sector", saveg_read32(), numsectors);
     str->sector = &sectors[sector];
 
     // int minlight;
@@ -1384,6 +1444,7 @@ static void saveg_write_glow_t(glow_t *str)
 void P_WriteSaveGameHeader(char *description)
 {
     char name[VERSIONSIZE];
+    sha1_digest_t wad_digest;
     int i;
 
     for (i=0; description[i] != '\0'; ++i)
@@ -1392,10 +1453,14 @@ void P_WriteSaveGameHeader(char *description)
         saveg_write8(0);
 
     memset(name, 0, sizeof(name));
-    M_snprintf(name, sizeof(name), "version %d", G_VanillaVersionCode());
+    M_StringCopy(name, ML_SAVEGAME_VERSION, sizeof(name));
 
     for (i=0; i<VERSIONSIZE; ++i)
         saveg_write8(name[i]);
+
+    W_Checksum(wad_digest);
+    for (i = 0; i < (int)sizeof(wad_digest); ++i)
+        saveg_write8(wad_digest[i]);
 
     saveg_write8(gameskill);
     saveg_write8(gameepisode);
@@ -1417,8 +1482,12 @@ boolean P_ReadSaveGameHeader(void)
 {
     int	 i;
     byte a, b, c;
+    char map_lump[9];
+    sha1_digest_t current_digest;
+    sha1_digest_t saved_digest;
     char vcheck[VERSIONSIZE];
     char read_vcheck[VERSIONSIZE];
+    boolean new_format;
 
     // skip the description field
 
@@ -1429,16 +1498,75 @@ boolean P_ReadSaveGameHeader(void)
         read_vcheck[i] = saveg_read8();
 
     memset(vcheck, 0, sizeof(vcheck));
-    M_snprintf(vcheck, sizeof(vcheck), "version %d", G_VanillaVersionCode());
-    if (strcmp(read_vcheck, vcheck) != 0)
-	return false;				// bad version
+    M_StringCopy(vcheck, ML_SAVEGAME_VERSION, sizeof(vcheck));
+    new_format = memcmp(read_vcheck, vcheck, sizeof(vcheck)) == 0;
+
+    if (new_format)
+    {
+        for (i = 0; i < (int)sizeof(saved_digest); ++i)
+            saved_digest[i] = saveg_read8();
+
+        W_Checksum(current_digest);
+        if (memcmp(saved_digest, current_digest, sizeof(saved_digest)) != 0)
+        {
+            fprintf(stderr, "savegame: active WAD does not match save\n");
+            return false;
+        }
+    }
+    else
+    {
+        // Accept legacy v0.4 saves once so their variant-specific weapon
+        // state can be repaired. All newly written saves carry the WAD ID.
+        memset(vcheck, 0, sizeof(vcheck));
+        M_snprintf(vcheck, sizeof(vcheck), "version %d",
+                   G_VanillaVersionCode());
+        if (memcmp(read_vcheck, vcheck, sizeof(vcheck)) != 0)
+        {
+            fprintf(stderr, "savegame: unsupported format version\n");
+            return false;
+        }
+    }
 
     gameskill = saveg_read8();
     gameepisode = saveg_read8();
     gamemap = saveg_read8();
 
+    if (gameskill < sk_baby || gameskill > sk_nightmare)
+    {
+        saveg_invalid("skill", gameskill, sk_nightmare + 1);
+        return false;
+    }
+
+    if (gamemode == commercial)
+        M_snprintf(map_lump, sizeof(map_lump), "MAP%02d", gamemap);
+    else
+        M_snprintf(map_lump, sizeof(map_lump), "E%dM%d",
+                   gameepisode, gamemap);
+
+    if (gameepisode < 1 || gamemap < 1 || W_CheckNumForName(map_lump) < 0)
+    {
+        fprintf(stderr, "savegame: map %s is not in the active WAD\n",
+                map_lump);
+        savegame_error = true;
+        return false;
+    }
+
     for (i=0 ; i<MAXPLAYERS ; i++)
+    {
 	playeringame[i] = saveg_read8();
+        if (playeringame[i] != 0 && playeringame[i] != 1)
+        {
+            saveg_invalid("player present", playeringame[i], 2);
+            return false;
+        }
+    }
+
+    if (!playeringame[consoleplayer])
+    {
+        fprintf(stderr, "savegame: console player is missing\n");
+        savegame_error = true;
+        return false;
+    }
 
     // get the times
     a = saveg_read8();
@@ -1573,14 +1701,17 @@ void P_UnArchiveWorld (void)
     sector_t*		sec;
     line_t*		li;
     side_t*		si;
+    int value;
 
     // do sectors
     for (i=0, sec = sectors ; i<numsectors ; i++,sec++)
     {
 	sec->floorheight = saveg_read16() << FRACBITS;
 	sec->ceilingheight = saveg_read16() << FRACBITS;
-	sec->floorpic = saveg_read16();
-	sec->ceilingpic = saveg_read16();
+	value = saveg_read16();
+	sec->floorpic = saveg_checked_index("floor flat", value, numflats);
+	value = saveg_read16();
+	sec->ceilingpic = saveg_checked_index("ceiling flat", value, numflats);
 	sec->lightlevel = saveg_read16();
 	sec->special = saveg_read16();		// needed?
 	sec->tag = saveg_read16();		// needed?
@@ -1601,9 +1732,15 @@ void P_UnArchiveWorld (void)
 	    si = &sides[li->sidenum[j]];
 	    si->textureoffset = saveg_read16() << FRACBITS;
 	    si->rowoffset = saveg_read16() << FRACBITS;
-	    si->toptexture = saveg_read16();
-	    si->bottomtexture = saveg_read16();
-	    si->midtexture = saveg_read16();
+	    value = saveg_read16();
+	    si->toptexture = saveg_checked_index("top texture", value,
+	                                         numtextures);
+	    value = saveg_read16();
+	    si->bottomtexture = saveg_checked_index("bottom texture", value,
+	                                            numtextures);
+	    value = saveg_read16();
+	    si->midtexture = saveg_checked_index("middle texture", value,
+	                                         numtextures);
 	}
     }
 }
@@ -1701,7 +1838,8 @@ void P_UnArchiveThinkers (void)
 	    break;
 
 	  default:
-	    I_Error ("Unknown tclass %d in savegame",tclass);
+	    saveg_invalid("thinker class", tclass, tc_mobj + 1);
+	    return;
 	}
 
     }
@@ -1918,8 +2056,8 @@ void P_UnArchiveSpecials (void)
 	    break;
 
 	  default:
-	    I_Error ("P_UnarchiveSpecials:Unknown tclass %d "
-		     "in savegame",tclass);
+	    saveg_invalid("special class", tclass, tc_endspecials + 1);
+	    return;
 	}
 
     }

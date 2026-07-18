@@ -567,6 +567,15 @@ ST_Responder (event_t* ev)
 	
 	for (i=0;i<NUMWEAPONS;i++)
 	  plyr->weaponowned[i] = true;
+
+	// The super shotgun states and sprites only exist in Doom II IWADs.
+	if (logical_gamemission == doom)
+	  plyr->weaponowned[wp_supershotgun] = false;
+	if (gamemission == doom && gamemode == shareware)
+	{
+	  plyr->weaponowned[wp_plasma] = false;
+	  plyr->weaponowned[wp_bfg] = false;
+	}
 	
 	for (i=0;i<NUMAMMO;i++)
 	  plyr->ammo[i] = plyr->maxammo[i];
@@ -581,6 +590,15 @@ ST_Responder (event_t* ev)
 	
 	for (i=0;i<NUMWEAPONS;i++)
 	  plyr->weaponowned[i] = true;
+
+	// The super shotgun states and sprites only exist in Doom II IWADs.
+	if (logical_gamemission == doom)
+	  plyr->weaponowned[wp_supershotgun] = false;
+	if (gamemission == doom && gamemode == shareware)
+	{
+	  plyr->weaponowned[wp_plasma] = false;
+	  plyr->weaponowned[wp_bfg] = false;
+	}
 	
 	for (i=0;i<NUMAMMO;i++)
 	  plyr->ammo[i] = plyr->maxammo[i];

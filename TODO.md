@@ -6,6 +6,7 @@
   balance without increasing camera CPU load significantly.
 - Compare the stable low-CPU synth with a future table-driven OPL2 backend.
 - Keep music and Doom sound effects in the same low-CPU mixer.
+- Keep music playing while entering and browsing the secret cheat menu.
 - Verify clipping, channel balance and multi-hour session stability.
 
 ## WAD handling

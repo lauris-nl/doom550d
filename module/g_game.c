@@ -78,6 +78,77 @@
 
 #define SAVEGAMESIZE	0x2c000
 
+static void G_SanitizeLoadedWeapons(void)
+{
+    int i;
+
+    for (i = 0; i < MAXPLAYERS; ++i)
+    {
+        player_t *player;
+        boolean rebuild_psprites = false;
+        int psp;
+
+        if (!playeringame[i])
+            continue;
+
+        player = &players[i];
+
+        if ((unsigned int)player->readyweapon >= NUMWEAPONS
+         || (logical_gamemission == doom
+          && player->readyweapon == wp_supershotgun)
+         || (gamemission == doom && gamemode == shareware
+          && (player->readyweapon == wp_plasma
+           || player->readyweapon == wp_bfg)))
+        {
+            player->readyweapon = player->weaponowned[wp_shotgun]
+                                ? wp_shotgun : wp_pistol;
+            rebuild_psprites = true;
+        }
+
+        if ((player->pendingweapon != wp_nochange
+          && (unsigned int)player->pendingweapon >= NUMWEAPONS)
+         || (logical_gamemission == doom
+          && player->pendingweapon == wp_supershotgun)
+         || (gamemission == doom && gamemode == shareware
+          && (player->pendingweapon == wp_plasma
+           || player->pendingweapon == wp_bfg)))
+        {
+            player->pendingweapon = wp_nochange;
+            rebuild_psprites = true;
+        }
+
+        if (logical_gamemission == doom)
+            player->weaponowned[wp_supershotgun] = false;
+
+        if (gamemission == doom && gamemode == shareware)
+        {
+            player->weaponowned[wp_plasma] = false;
+            player->weaponowned[wp_bfg] = false;
+        }
+
+        for (psp = 0; psp < NUMPSPRITES; ++psp)
+        {
+            state_t *state = player->psprites[psp].state;
+
+            if (state != NULL
+             && ((unsigned int)state->sprite >= (unsigned int)numsprites
+              || (state->frame & FF_FRAMEMASK)
+                 >= sprites[state->sprite].numframes))
+            {
+                rebuild_psprites = true;
+            }
+        }
+
+        if (rebuild_psprites)
+        {
+            fprintf(stderr,
+                    "load: replaced incompatible weapon with %d\n",
+                    player->readyweapon);
+            P_SetupPsprites(player);
+        }
+    }
+}
+
 void	G_ReadDemoTiccmd (ticcmd_t* cmd);
 void	G_WriteDemoTiccmd (ticcmd_t* cmd);
 void	G_PlayerReborn (int player);
@@ -1564,6 +1635,10 @@ void G_LoadGame (char* name)
 void G_DoLoadGame (void)
 {
     int savedleveltime;
+    skill_t previous_skill = gameskill;
+    int previous_episode = gameepisode;
+    int previous_map = gamemap;
+    boolean base_level_loaded = false;
 
     gameaction = ga_nothing;
 
@@ -1588,7 +1663,13 @@ void G_DoLoadGame (void)
 
         save_stream = NULL;
 
-        fprintf(stderr, "load: complete\n");
+        gameskill = previous_skill;
+        gameepisode = previous_episode;
+        gamemap = previous_map;
+        if (gamestate == GS_LEVEL && players[consoleplayer].mo != NULL)
+            players[consoleplayer].message = "INCOMPATIBLE SAVEGAME";
+
+        fprintf(stderr, "load: rejected header\n");
         return;
     }
 
@@ -1598,6 +1679,7 @@ void G_DoLoadGame (void)
     fprintf(stderr, "load: base-level\n");
 
     G_InitNew(gameskill, gameepisode, gamemap);
+    base_level_loaded = true;
 
     fprintf(stderr, "load: players\n");
 
@@ -1605,20 +1687,32 @@ void G_DoLoadGame (void)
 
     // dearchive all the modifications
     P_UnArchivePlayers();
+    if (savegame_error)
+        goto load_failed;
 
     fprintf(stderr, "load: world\n");
     P_UnArchiveWorld();
+    if (savegame_error)
+        goto load_failed;
 
     fprintf(stderr, "load: thinkers\n");
     P_UnArchiveThinkers();
+    if (savegame_error)
+        goto load_failed;
 
     fprintf(stderr, "load: specials\n");
     P_UnArchiveSpecials();
+    if (savegame_error)
+        goto load_failed;
+
+    // Old or cross-IWAD saves can contain weapon states unavailable in the
+    // active game (most notably Doom II's super shotgun in Doom 1).
+    G_SanitizeLoadedWeapons();
 
     fprintf(stderr, "load: eof\n");
 
-    if (!P_ReadSaveGameEOF())
-	I_Error ("Bad savegame");
+    if (!P_ReadSaveGameEOF() || savegame_error)
+        goto load_failed;
 
     fclose(save_stream);
 
@@ -1638,6 +1732,28 @@ void G_DoLoadGame (void)
 
     // draw the pattern into the back screen
     R_FillBackScreen ();
+
+    return;
+
+load_failed:
+    fprintf(stderr, "load: rejected damaged or incompatible body\n");
+    if (save_stream != NULL)
+    {
+        fclose(save_stream);
+        save_stream = NULL;
+    }
+
+    // Deserializing a vanilla save necessarily modifies the freshly loaded
+    // level. Recreate that level to discard every partial object safely.
+    if (base_level_loaded)
+    {
+        G_InitNew(gameskill, gameepisode, gamemap);
+        players[consoleplayer].message = "INCOMPATIBLE SAVEGAME";
+    }
+
+    G_ResetInputState();
+    D_ClearEvents();
+    DG_ResetInput();
 
 }
 

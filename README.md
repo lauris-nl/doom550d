@@ -199,6 +199,14 @@ Selecting a save slot with SET writes it directly; existing descriptions are
 retained and empty slots receive a map description. Input state is reset after
 a successful save so the controls do not remain stuck.
 
+New saves include a Doom 550D format version and a fingerprint of the active
+WAD layout. Saves from a different or changed WAD and damaged saves are
+rejected with **INCOMPATIBLE SAVEGAME** instead of being partially applied.
+The loader validates maps, players, weapons, states, sprites, textures,
+sectors, thinkers and moving specials before gameplay resumes. Legacy v0.4
+saves remain readable; incompatible Doom II weapons in Doom 1 are replaced
+with a valid shotgun or pistol and their weapon sprites are rebuilt.
+
 Doom menu settings, music volume, and sound-effect volume are stored in:
 
 ```text

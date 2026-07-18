@@ -21,6 +21,12 @@ Savegames use a hash of the exact WAD filename so games remain separated::
 Selecting a slot with SET saves directly. Doom menu options, music volume and
 sound-effect volume are stored in ``ML/DOOM/CONFIG``.
 
+New saves contain a Doom 550D format version and active-WAD fingerprint.
+Changed-WAD and damaged saves are rejected as ``INCOMPATIBLE SAVEGAME`` before
+gameplay resumes. Map, player, weapon, state, sprite, texture, sector, thinker
+and moving-special references are range checked. Legacy v0.4 saves remain
+readable; Doom II weapons stored in a Doom 1 save are replaced safely.
+
 Debug logging
 -------------
 
