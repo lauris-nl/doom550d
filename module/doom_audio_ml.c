@@ -1,4 +1,5 @@
 #include <audio.h>
+#include <arm-mcr.h>
 #include <dryos.h>
 #include <fio-ml.h>
 #include <mem.h>
@@ -83,6 +84,8 @@ static unsigned int render_peak_ms;
 static unsigned int render_deadline_misses;
 static unsigned int music_input_peak;
 static unsigned int music_output_peak;
+static unsigned int music_loop_count;
+static unsigned int music_parse_failures;
 
 /* Chocolate Doom binds these legacy SDL settings when sound is enabled. */
 int use_libsamplerate = 0;
@@ -226,7 +229,11 @@ static int mus_group(void)
             }
             case 0x60:
                 voices_stop();
-                if (music_looping && song) return mus_reset(song->data, song->length);
+                if (music_looping && song)
+                {
+                    music_loop_count++;
+                    return mus_reset(song->data, song->length);
+                }
                 music_running = 0;
                 return 1;
             default:
@@ -254,6 +261,7 @@ static void music_render(int16_t *buffer, int samples)
         while (music_running && mus.samples_to_event == 0)
             if (!mus_group())
             {
+                music_parse_failures++;
                 music_running = 0;
                 voices_stop();
                 break;
@@ -321,16 +329,19 @@ static void render(int16_t *buffer)
 static void log_audio_timing(unsigned int peak, unsigned int misses)
 {
     FILE *file;
-    char text[192];
+    char text[256];
     int length;
 
     if (!doom_debug_enabled) return;
 
     length = snprintf(text, sizeof(text),
         "audio softsynth-24k peak_ms=%d deadline_misses=%d "
-        "music_volume=%d pre_peak=%d post_peak=%d\n",
+        "music_volume=%d pre_peak=%d post_peak=%d loops=%d "
+        "parse_failures=%d music_running=%d music_paused=%d\n",
         (int)peak, (int)misses, music_volume,
-        (int)music_input_peak, (int)music_output_peak);
+        (int)music_input_peak, (int)music_output_peak,
+        (int)music_loop_count, (int)music_parse_failures,
+        music_running, music_paused);
 
     if (length <= 0) return;
     if (length >= (int)sizeof(text)) length = sizeof(text) - 1;
@@ -382,6 +393,8 @@ static int audio_start(void)
     render_deadline_misses = 0;
     music_input_peak = 0;
     music_output_peak = 0;
+    music_loop_count = 0;
+    music_parse_failures = 0;
     render_timed(buffers[0]);
     render_timed(buffers[1]);
     next_buffer = 0;
@@ -400,8 +413,10 @@ static int audio_start(void)
 void doom_audio_ml_force_shutdown(void)
 {
     int i;
+    uint32_t old_irq = cli();
     music_running = 0;
     voices_stop();
+    sei(old_irq);
     for (i = 0; i < SFX_CHANNELS; i++) sfx[i].active = 0;
     if (audio_running)
     {
@@ -553,8 +568,19 @@ static void music_shutdown(void)
     doom_softsynth_shutdown();
 }
 static void music_set_volume(int volume) { music_volume = volume; }
-static void music_pause(void) { music_paused = 1; }
-static void music_resume(void) { music_paused = 0; }
+static void music_pause(void)
+{
+    uint32_t old_irq = cli();
+    music_paused = 1;
+    sei(old_irq);
+}
+
+static void music_resume(void)
+{
+    uint32_t old_irq = cli();
+    music_paused = 0;
+    sei(old_irq);
+}
 
 static void *music_register(void *data, int length)
 {
@@ -572,14 +598,18 @@ static void *music_register(void *data, int length)
 static void music_unregister(void *handle)
 {
     song_t *registered = handle;
+    uint32_t old_irq;
     if (!registered) return;
+    old_irq = cli();
     if (song == registered) { music_running = 0; song = NULL; voices_stop(); }
+    sei(old_irq);
     free(registered);
 }
 
 static void music_play(void *handle, boolean looping)
 {
     song_t *registered = handle;
+    uint32_t old_irq = cli();
     music_running = 0;
     voices_stop();
     song = registered;
@@ -587,9 +617,17 @@ static void music_play(void *handle, boolean looping)
     music_paused = 0;
     if (registered && mus_reset(registered->data, registered->length))
         music_running = 1;
+    sei(old_irq);
 }
 
-static void music_stop(void) { music_running = 0; song = NULL; voices_stop(); }
+static void music_stop(void)
+{
+    uint32_t old_irq = cli();
+    music_running = 0;
+    song = NULL;
+    voices_stop();
+    sei(old_irq);
+}
 static boolean music_playing(void) { return music_running ? true : false; }
 static void music_poll(void) {}
 

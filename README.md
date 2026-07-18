@@ -5,7 +5,7 @@ Doom running as a Magic Lantern module on the Canon EOS 550D / Rebel T2i / Kiss 
 This repository contains the module source and release documentation. It does
 not contain Doom, Freedoom, or any other WAD data.
 
-> Status: experimental. Release `v0.4.0` is built for the Canon EOS
+> Status: experimental. Release `v0.4.1` is built for the Canon EOS
 > 550D and is the best playable build tested so far. It is not intended for
 > other cameras.
 

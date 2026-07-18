@@ -30,6 +30,14 @@
 - Continue long-duration save/load, quit, repeated-start, palette and control
   regression testing.
 
+## Completed in v0.4.1
+
+- Add versioned, WAD-fingerprinted savegames with defensive validation.
+- Repair incompatible Doom 1 weapon state in legacy saves and cheats.
+- Serialize music state changes against the Canon DMA callback to prevent
+  intermittent music dropouts.
+- Record music loop and parser-failure diagnostics in the Doom engine log.
+
 ## Completed in v0.4.0
 
 - Add the secret in-game menu for classic cheats, available IWAD music, and
